@@ -32,10 +32,11 @@ jobs:
 
       - name: Build App for iOS Simulator
         run: |
+          xcodebuild -showdestinations -project KASH.xcodeproj -scheme KASH || true
           xcodebuild build \
             -project KASH.xcodeproj \
             -scheme KASH \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'platform=iOS Simulator,arch=arm64' \
             -configuration Debug \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
