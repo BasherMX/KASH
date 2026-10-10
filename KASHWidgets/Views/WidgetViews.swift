@@ -44,6 +44,7 @@ struct KASHSmallWidgetView: View {
                     Text("Próx: \(card) (\(days)d)")
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
         }
@@ -69,6 +70,8 @@ struct KASHMediumWidgetView: View {
 
                     Text(entry.totalDebt.formatted(.currency(code: "MXN")))
                         .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
 
                 Spacer()
@@ -141,6 +144,153 @@ struct KASHMediumWidgetView: View {
         }
         .containerBackground(for: .widget) {
             Color(uiColor: .secondarySystemBackground)
+        }
+    }
+}
+
+// MARK: - KASHLargeWidgetView (systemLarge 4x4)
+struct KASHLargeWidgetView: View {
+    let entry: KASHWidgetEntry
+
+    var body: some View {
+        VStack(spacing: 14) {
+            // Header
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "creditcard.fill")
+                        .foregroundStyle(Color(hex: "#3B82F6"))
+                    Text("KASH FINANZAS")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .tracking(0.5)
+                }
+                Spacer()
+                Text("🟢 Buró: \(entry.healthStatus)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(hex: "#10B981"))
+            }
+
+            // Métrica Principal
+            VStack(alignment: .leading, spacing: 4) {
+                Text("DEUDA TOTAL ACUMULADA")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+
+                Text(entry.totalDebt.formatted(.currency(code: "MXN")))
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Barra de uso
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Uso de Línea de Crédito")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(entry.utilizationRatio * 100))%")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                ProgressView(value: min(1.0, entry.utilizationRatio), total: 1.0)
+                    .tint(entry.utilizationRatio < 0.3 ? Color(hex: "#10B981") : Color(hex: "#EF4444"))
+            }
+
+            if let card = entry.nextUpcomingCard, let days = entry.nextUpcomingDays {
+                HStack {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundStyle(Color(hex: "#F59E0B"))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Próximo Vencimiento")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Text("\(card) en \(days) días")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    Spacer()
+                }
+                .padding(10)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
+
+            Spacer()
+
+            // Botones de acción rápida
+            HStack(spacing: 8) {
+                Button(intent: QuickExpenseIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Gasto")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: "#EF4444").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#EF4444"))
+                }
+                .buttonStyle(.plain)
+
+                Button(intent: QuickIncomeIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Ingreso")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: "#10B981").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#10B981"))
+                }
+                .buttonStyle(.plain)
+
+                Button(intent: PayCardIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "creditcard")
+                        Text("Pagar")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: "#2563EB").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#2563EB"))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .containerBackground(for: .widget) {
+            Color(uiColor: .secondarySystemBackground)
+        }
+    }
+}
+
+// MARK: - KASHAccessoryRectangularWidgetView (Lock Screen)
+struct KASHAccessoryRectangularWidgetView: View {
+    let entry: KASHWidgetEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: "creditcard.fill")
+                    .font(.system(size: 10))
+                Text("KASH")
+                    .font(.system(size: 10, weight: .bold))
+                Spacer()
+                Text("\(Int(entry.utilizationRatio * 100))% uso")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+
+            Text(entry.totalDebt.formatted(.currency(code: "MXN")))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Text("Buró: \(entry.healthStatus)" + (entry.nextUpcomingCard != nil ? " • \(entry.nextUpcomingCard!)" : ""))
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .containerBackground(for: .widget) {
+            Color.clear
         }
     }
 }

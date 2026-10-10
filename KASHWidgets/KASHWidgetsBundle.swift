@@ -11,7 +11,7 @@ struct KASHWidget: Widget {
         }
         .configurationDisplayName("KASH Deuda y Liquidez")
         .description("Consulta tu deuda total, porcentaje de utilización y ejecuta acciones rápidas.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
     }
 }
 
@@ -26,6 +26,10 @@ struct KASHWidgetEntryView: View {
             KASHSmallWidgetView(entry: entry)
         case .systemMedium:
             KASHMediumWidgetView(entry: entry)
+        case .systemLarge:
+            KASHLargeWidgetView(entry: entry)
+        case .accessoryRectangular:
+            KASHAccessoryRectangularWidgetView(entry: entry)
         default:
             KASHSmallWidgetView(entry: entry)
         }

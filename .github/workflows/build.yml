@@ -50,6 +50,8 @@ jobs:
           echo "Found built app at: $APP_PATH"
           /usr/libexec/PlistBuddy -c "Set :NSFaceIDUsageDescription 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$APP_PATH/Info.plist" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$APP_PATH/Info.plist"
+          echo "=== Inspecting Simulator PlugIns ==="
+          ls -la "$APP_PATH/PlugIns" || echo "No simulator PlugIns"
           cd "$(dirname "$APP_PATH")"
           zip -r "$GITHUB_WORKSPACE/output/KASH-iOS-Simulator.app.zip" "KASH.app"
 
@@ -87,6 +89,8 @@ jobs:
           echo "=== Verified Info.plist NSFaceIDUsageDescription ==="
           /usr/libexec/PlistBuddy -c "Print :NSFaceIDUsageDescription" "$DEVICE_APP/Info.plist"
           cp -R "$DEVICE_APP" Payload/
+          echo "=== Inspecting PlugIns inside IPA ==="
+          ls -la "Payload/KASH.app/PlugIns" || echo "PlugIns directory not found!"
           zip -r "$GITHUB_WORKSPACE/output/KASH.ipa" Payload
 
       - name: Upload IPA Artifact

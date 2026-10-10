@@ -12,6 +12,9 @@ targets:
       - path: KASH
         excludes:
           - Info.plist
+      - path: Shared
+    dependencies:
+      - target: KASHWidgets
     info:
       path: KASH/Info.plist
       properties:
@@ -21,3 +24,24 @@ targets:
       INFOPLIST_FILE: KASH/Info.plist
       INFOPLIST_KEY_NSFaceIDUsageDescription: "KASH requiere autenticación biométrica para proteger tus datos financieros."
       PRODUCT_BUNDLE_IDENTIFIER: com.kash.app
+
+  KASHWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: 17.0
+    sources:
+      - path: KASHWidgets
+        excludes:
+          - Info.plist
+      - path: KASH/Core/DesignSystem/ColorTokens.swift
+      - path: Shared
+    info:
+      path: KASHWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: KASH Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.kash.app.widgets
+      GENERATE_INFOPLIST_FILE: true
+      INFOPLIST_FILE: KASHWidgets/Info.plist

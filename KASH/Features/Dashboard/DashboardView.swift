@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import SwiftData
+import WidgetKit
 
 // MARK: - DashboardView
 /// Vista principal de KASH que aplica estrictamente la Regla de Oro:
@@ -15,7 +16,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     // 1. Tarjeta Héroe de Liquidez Real y Regla de Oro
                     RealLiquidityHeroCard(
                         realLiquidity: realLiquidityTotal,
@@ -25,6 +26,11 @@ struct DashboardView: View {
 
                     // 2. Acciones Rápidas
                     QuickActionButtonsRow()
+
+                    // Banner de inicio rápido si no hay cuentas configuradas aún
+                    if creditCards.isEmpty && liquidityAccounts.isEmpty {
+                        emptyStateGuideCard
+                    }
 
                     // 3. Semáforo Buró de Crédito & Capacidad de Endeudamiento
                     CreditUtilizationCard(
@@ -39,8 +45,11 @@ struct DashboardView: View {
                     // 5. Desglose de Tarjetas de Crédito Activas
                     CreditCardsSnapshotCard(cards: creditCards)
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("KASH")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -56,7 +65,68 @@ struct DashboardView: View {
                     }
                 }
             }
+            .onAppear {
+                syncWidgetData()
+            }
+            .onChange(of: totalDebtCurrent) { _, _ in
+                syncWidgetData()
+            }
         }
+    }
+
+    // MARK: - Sincronización con KASHWidgets
+    private func syncWidgetData() {
+        let nextCard = upcomingPayments.first(where: { $0.status == .pending })?.concept
+        let nextDays = upcomingPayments.first(where: { $0.status == .pending }).map {
+            max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0.dueDate).day ?? 0)
+        }
+
+        let snapshot = KASHWidgetSnapshot(
+            totalDebt: totalDebtCurrent,
+            utilizationRatio: overallUtilizationRatio,
+            healthStatus: overallUtilizationRatio < 0.30 ? "Óptimo" : (overallUtilizationRatio <= 0.50 ? "Alerta" : "Crítico"),
+            nextUpcomingCard: nextCard,
+            nextUpcomingDays: nextDays,
+            lastUpdated: Date()
+        )
+        KASHSharedStore.saveSnapshot(snapshot)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    // MARK: - Banner de bienvenida si está vacío
+    private var emptyStateGuideCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(hex: "#2563EB"))
+                Text("Comienza configurando tus cuentas")
+                    .font(.kashBodyBold)
+                    .foregroundStyle(.primary)
+            }
+
+            Text("Agrega tus tarjetas de crédito o cuentas de débito para ver tu semáforo de buró, capacidad de endeudamiento y compromisos en tiempo real.")
+                .font(.kashCaption)
+                .foregroundStyle(.secondary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                appState.selectedTab = .settings
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Configurar en Ajustes > Catálogos")
+                        .font(.kashCaptionBold)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(Color(hex: "#2563EB"))
+                .padding(.top, 2)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Cálculos Financieros Estrictos
@@ -93,13 +163,15 @@ struct RealLiquidityHeroCard: View {
     let netWorth: Decimal
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("LIQUIDEZ REAL (DINERO PROPIO)")
                         .font(.kashMicro)
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.white.opacity(0.85))
                         .tracking(0.5)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     PrivacyAwareText(
                         amount: realLiquidity,
@@ -110,7 +182,7 @@ struct RealLiquidityHeroCard: View {
                 Spacer()
 
                 Image(systemName: "banknote.fill")
-                    .font(.system(size: 28))
+                    .font(.system(size: 26))
                     .foregroundStyle(.white.opacity(0.9))
             }
 
@@ -121,7 +193,7 @@ struct RealLiquidityHeroCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Deuda Total a Pagar")
                         .font(.kashMicro)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.75))
                     PrivacyAwareText(
                         amount: totalDebt,
                         font: .kashAmountSmall,
@@ -134,7 +206,7 @@ struct RealLiquidityHeroCard: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Patrimonio Neto (Líquido)")
                         .font(.kashMicro)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.75))
                     PrivacyAwareText(
                         amount: netWorth,
                         font: .kashAmountSmall,
@@ -143,7 +215,7 @@ struct RealLiquidityHeroCard: View {
                 }
             }
         }
-        .padding(20)
+        .padding(18)
         .background(
             LinearGradient(
                 colors: [Color(hex: "#1E3A8A"), Color(hex: "#2563EB")],
@@ -152,7 +224,7 @@ struct RealLiquidityHeroCard: View {
             ),
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
-        .shadow(color: Color(hex: "#2563EB").opacity(0.3), radius: 12, y: 6)
+        .shadow(color: Color(hex: "#2563EB").opacity(0.25), radius: 10, y: 5)
     }
 }
 
@@ -161,7 +233,7 @@ struct QuickActionButtonsRow: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             QuickActionButton(
                 title: "+ Gasto",
                 icon: "arrow.up.right",
@@ -209,16 +281,18 @@ struct QuickActionButton: View {
                 ZStack {
                     Circle()
                         .fill(color.opacity(0.12))
-                        .frame(width: 44, height: 44)
+                        .frame(width: 42, height: 42)
 
                     Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(color)
                 }
 
                 Text(title)
                     .font(.kashMicro)
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -328,6 +402,8 @@ struct UpcomingPaymentsCard: View {
                     Text("¡Al día! No tienes pagos de tarjetas pendientes para este mes.")
                         .font(.kashCaption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
             } else {
@@ -380,6 +456,8 @@ struct CreditCardsSnapshotCard: View {
                 Text("No tienes tarjetas registradas.")
                     .font(.kashCaption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
