@@ -108,7 +108,7 @@ struct RootView: View {
         .fullScreenCover(isPresented: $appState.isOnboardingPresented) {
             OnboardingView()
         }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(to: newPhase)
         }
         .onAppear {

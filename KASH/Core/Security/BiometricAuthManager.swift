@@ -38,7 +38,6 @@ final class BiometricAuthManager: ObservableObject {
         context.localizedCancelTitle = "Cancelar"
 
         var error: NSError?
-        // Intentar primero con biometría o fallback al código del dispositivo
         let policy: LAPolicy = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
             ? .deviceOwnerAuthenticationWithBiometrics
             : .deviceOwnerAuthentication
@@ -54,44 +53,11 @@ final class BiometricAuthManager: ObservableObject {
                 self.authErrorMessage = "Autenticación fallida"
                 return false
             }
-        } catch let laError as LAError {
-            self.isUnlocked = false
-            switch laError.code {
-            case .userCancel:
-                self.authErrorMessage = "Autenticación cancelada"
-            case .userFallback:
-                // Permitir reintentar con código si el usuario lo solicita
-                return await authenticateWithPasscode(reason: reason)
-            case .biometryNotEnrolled:
-                self.authErrorMessage = "No hay datos biométricos registrados"
-            case .biometryLockout:
-                self.authErrorMessage = "Biometría bloqueada temporalmente. Usa tu código."
-                return await authenticateWithPasscode(reason: reason)
-            default:
-                self.authErrorMessage = laError.localizedDescription
-            }
-            return false
         } catch {
             self.isUnlocked = false
             self.authErrorMessage = error.localizedDescription
             return false
         }
-    }
-
-    /// Fallback a código del dispositivo
-    private func authenticateWithPasscode(reason: String) async -> Bool {
-        let context = LAContext()
-        do {
-            let success = try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)
-            if success {
-                self.isUnlocked = true
-                self.authErrorMessage = nil
-                return true
-            }
-        } catch {
-            self.authErrorMessage = error.localizedDescription
-        }
-        return false
     }
 
     /// Bloquea la aplicación (llamado al pasar a segundo plano)
