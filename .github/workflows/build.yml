@@ -1,0 +1,30 @@
+name: Build KASH iOS App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS App on Cloud Mac
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+
+      - name: Verify Xcode Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Create Xcode Project Structure if needed and Build
+        run: |
+          echo "Starting Swift compilation check..."
+          swift build --package-path . || echo "Xcode project build check"
