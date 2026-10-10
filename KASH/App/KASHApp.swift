@@ -20,7 +20,6 @@ struct KASHApp: App {
         ])
         
         let modelConfiguration = ModelConfiguration(
-            schema: schema,
             isStoredInMemoryOnly: false
         )
 
