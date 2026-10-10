@@ -57,3 +57,35 @@ jobs:
           name: KASH-iOS-Simulator-App
           path: output/KASH-iOS-Simulator.app.zip
           retention-days: 7
+
+      - name: Build App for Physical Device (ARM64)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project KASH.xcodeproj \
+            -scheme KASH \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build_device \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild_device.log || {
+              ERR_LINES=$(grep -E ": error:|error:" xcodebuild_device.log | head -n 20 | tr '\n' ' | ' | tr '"' "'")
+              echo "::error::DEVICE BUILD ERRORS: $ERR_LINES"
+              exit 1
+            }
+
+      - name: Package IPA for Sideloading
+        run: |
+          mkdir -p Payload
+          DEVICE_APP=$(find build_device/Build/Products -name "KASH.app" -type d | head -n 1)
+          echo "Found Device App at: $DEVICE_APP"
+          cp -R "$DEVICE_APP" Payload/
+          zip -r "$GITHUB_WORKSPACE/output/KASH.ipa" Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KASH-iOS-IPA
+          path: output/KASH.ipa
+          retention-days: 7
