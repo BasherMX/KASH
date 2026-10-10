@@ -32,6 +32,7 @@ jobs:
 
       - name: Build App for iOS Simulator
         run: |
+          set -o pipefail
           xcodebuild build \
             -project KASH.xcodeproj \
             -scheme KASH \
@@ -41,7 +42,7 @@ jobs:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build_output.log || (echo "=== XCODEBUILD ERROR LOG ===" && cat build_output.log && exit 1)
 
       - name: Create Zip Artifact
         run: |
