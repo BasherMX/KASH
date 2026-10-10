@@ -32,16 +32,27 @@ jobs:
 
       - name: Build App for iOS Simulator
         run: |
-          xcodebuild -showdestinations -project KASH.xcodeproj -scheme KASH || true
           xcodebuild build \
             -project KASH.xcodeproj \
             -scheme KASH \
-            -destination 'platform=iOS Simulator,arch=arm64' \
+            -sdk iphonesimulator \
             -configuration Debug \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO > build_output.log 2>&1 || (cat build_output.log && exit 1)
+            CODE_SIGNING_ALLOWED=NO > build_output.log 2>&1 || true
+
+      - name: Print Xcode Build Log
+        run: cat build_output.log
+
+      - name: Verify Build Status
+        run: |
+          if grep -q "BUILD SUCCEEDED" build_output.log; then
+            echo "BUILD SUCCEEDED"
+          else
+            echo "BUILD FAILED"
+            exit 1
+          fi
 
       - name: Create Zip Artifact
         run: |
