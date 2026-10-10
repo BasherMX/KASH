@@ -38,10 +38,8 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild_raw.log || {
-              ERR_HEAD=$(head -n 15 xcodebuild_raw.log | tr '\n' ' ' | tr '"' "'")
-              ERR_TAIL=$(tail -n 25 xcodebuild_raw.log | tr '\n' ' ' | tr '"' "'")
-              echo "::error::HEAD: $ERR_HEAD"
-              echo "::error::TAIL: $ERR_TAIL"
+              ERR_LINES=$(grep -E ": error:|error:" xcodebuild_raw.log | head -n 20 | tr '\n' ' | ' | tr '"' "'")
+              echo "::error::SWIFT COMPILER ERRORS: $ERR_LINES"
               exit 1
             }
 
