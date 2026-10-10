@@ -19,12 +19,60 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
-      - name: Verify Xcode Toolchain
-        run: |
-          xcodebuild -version
-          swift --version
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-      - name: Create Xcode Project Structure if needed and Build
+      - name: Generate Xcode Project
         run: |
-          echo "Starting Swift compilation check..."
-          swift build --package-path . || echo "Xcode project build check"
+          cat << 'EOF' > project.yml
+          name: KASH
+          options:
+            bundleIdPrefix: com.kash.app
+            deploymentTarget:
+              iOS: 17.0
+          targets:
+            KASH:
+              type: application
+              platform: iOS
+              deploymentTarget: 17.0
+              sources:
+                - KASH
+              info:
+                path: KASH/Info.plist
+                properties:
+                  CFBundleDisplayName: KASH
+                  CFBundleIdentifier: com.kash.app
+                  CFBundleShortVersionString: "1.0.0"
+                  CFBundleVersion: "1"
+                  UILaunchStoryboardName: LaunchScreen
+                  UISupportedInterfaceOrientations:
+                    - UIInterfaceOrientationPortrait
+                  NSFaceIDUsageDescription: "KASH requiere Face ID para proteger tus datos financieros."
+                  NSSupportsLiveActivities: true
+          EOF
+          xcodegen generate
+
+      - name: Build App for iOS Simulator
+        run: |
+          xcodebuild build \
+            -project KASH.xcodeproj \
+            -scheme KASH \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create Zip Artifact
+        run: |
+          mkdir -p output
+          cd build/Build/Products/Release-iphonesimulator
+          zip -r ../../../output/KASH-iOS-Simulator.app.zip KASH.app
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KASH-iOS-Simulator-App
+          path: output/KASH-iOS-Simulator.app.zip
+          retention-days: 7
