@@ -4,6 +4,7 @@ options:
   deploymentTarget:
     iOS: 17.0
   objectVersion: 56
+  xcodeVersion: "15.4"
 targets:
   KASH:
     type: application

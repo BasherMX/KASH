@@ -21,6 +21,8 @@ jobs:
           ls -d /Applications/Xcode*.app || true
           if [ -d "/Applications/Xcode_15.4.app" ]; then
             sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          else
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           fi
           xcode-select -p
 
