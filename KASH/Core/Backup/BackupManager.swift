@@ -136,8 +136,8 @@ final class BackupManager {
 
         let manifest = BackupManifest(
             schemaVersion: "2.2.0",
-            appVersion: "1.1.0",
-            buildNumber: 2,
+            appVersion: "1.2.1",
+            buildNumber: 4,
             exportedAt: isoFormatter.string(from: Date()),
             deviceModel: "iPhone",
             entityCounts: counts,

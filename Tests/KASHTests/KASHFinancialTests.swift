@@ -209,4 +209,66 @@ struct KASHFinancialTests {
         #expect(package.creditCards.first?.name == "Plata")
         #expect(package.creditCards.first?.creditLimit == 40000.0)
     }
+
+    @Test("Verifica borrado total de datos y restablecimiento de fábrica")
+    @MainActor
+    func testDataResetManagerWipeAllData() throws {
+        let schema = Schema([
+            CreditCard.self,
+            LiquidityAccount.self,
+            TransactionCategory.self,
+            Transaction.self,
+            MonthlyRecord.self,
+            CardMonthlyBalance.self,
+            UpcomingPayment.self,
+            UserSettings.self,
+        ])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+
+        // Insertar datos de prueba
+        let card = CreditCard(name: "Test Card", institution: "Test Bank", creditLimit: 25000, cutoffDay: 10, paymentDueDay: 25)
+        context.insert(card)
+
+        let account = LiquidityAccount(name: "Cuenta Débito", institution: "Banco", availableBalance: 15000, accountType: .debit)
+        context.insert(account)
+
+        let tx = Transaction(concept: "Compra", amount: 500, creditCard: card)
+        context.insert(tx)
+
+        let record = MonthlyRecord(periodDate: Date())
+        context.insert(record)
+
+        let balance = CardMonthlyBalance(balanceUsed: 500, recordedAt: Date(), card: card, monthlyRecord: record)
+        context.insert(balance)
+
+        let payment = UpcomingPayment(concept: "Pago Test", dueDate: Date(), minimumPayment: 100, fullPaymentNoInterest: 500, card: card)
+        context.insert(payment)
+
+        try context.save()
+
+        // Verificar que hay datos antes del borrado
+        #expect(try context.fetchCount(FetchDescriptor<CreditCard>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<LiquidityAccount>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<Transaction>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<MonthlyRecord>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<CardMonthlyBalance>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<UpcomingPayment>()) == 1)
+
+        // Ejecutar borrado total
+        try DataResetManager.shared.wipeAllData(modelContext: context)
+
+        // Verificar que todas las entidades operativas se eliminaron
+        #expect(try context.fetchCount(FetchDescriptor<CreditCard>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<LiquidityAccount>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<Transaction>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<MonthlyRecord>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<CardMonthlyBalance>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<UpcomingPayment>()) == 0)
+
+        // Verificar que se recrearon las 9 categorías por defecto y 1 UserSettings inicial
+        #expect(try context.fetchCount(FetchDescriptor<TransactionCategory>()) == 9)
+        #expect(try context.fetchCount(FetchDescriptor<UserSettings>()) == 1)
+    }
 }

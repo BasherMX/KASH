@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 // MARK: - SettingsView
 struct SettingsView: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
     @Query private var userSettingsList: [UserSettings]
     @AppStorage("isPrivacyModeEnabled") private var isPrivacyModeEnabled: Bool = false
@@ -20,6 +21,7 @@ struct SettingsView: View {
     @State private var isShowingImportPicker: Bool = false
     @State private var alertMessage: String = ""
     @State private var isShowingAlert: Bool = false
+    @State private var isShowingDeleteConfirmationAlert: Bool = false
 
     private var currentSettings: UserSettings {
         userSettingsList.first ?? UserSettings()
@@ -158,7 +160,30 @@ struct SettingsView: View {
                     Text("Los respaldos son 100% compatibles con JSON universal sin bloqueo de proveedor. Puedes guardar en Archivos, compartir vía AirDrop o restaurar en cualquier momento.")
                 }
 
-                // SECCIÓN 6: PIE DE PÁGINA DEL SISTEMA
+                // SECCIÓN 6: ZONA DE PELIGRO - BORRADO TOTAL
+                Section {
+                    Button(role: .destructive) {
+                        isShowingDeleteConfirmationAlert = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Label("Borrar todos los datos", systemImage: "trash.fill")
+                                .font(.kashBodyBold)
+                                .foregroundStyle(Color.red)
+                            Spacer()
+                        }
+                    }
+                } header: {
+                    Label("Zona de Peligro", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.red)
+                } footer: {
+                    Text("⚠️ Esta acción es irreversible. Se eliminarán permanentemente todas tus tarjetas, cuentas, movimientos, cortes históricos y configuraciones. No se podrán recuperar.")
+                        .font(.kashMicro)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+
+                // SECCIÓN 7: PIE DE PÁGINA DEL SISTEMA
                 Section {
                     VStack(alignment: .center, spacing: 8) {
                         HStack(spacing: 6) {
@@ -169,7 +194,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Control TDC • KASH v1.2.0 (Build 3)")
+                        Text("Control TDC • KASH v1.2.1 (Build 4)")
                             .font(.kashMicro)
                             .foregroundStyle(.tertiary)
 
@@ -208,6 +233,17 @@ struct SettingsView: View {
                 Button("Entendido", role: .cancel) {}
             } message: {
                 Text(alertMessage)
+            }
+            .alert(
+                "⚠️ ¿Eliminar todos los datos de KASH?",
+                isPresented: $isShowingDeleteConfirmationAlert
+            ) {
+                Button("Cancelar", role: .cancel) {}
+                Button("Continuar y verificar identidad", role: .destructive) {
+                    confirmAndExecuteWipe()
+                }
+            } message: {
+                Text("Esta acción es irreversible. Se eliminarán permanentemente todas tus tarjetas, cuentas, movimientos, cortes históricos y configuraciones. No se podrán recuperar.")
             }
             .onAppear {
                 loadInitialSettings()
@@ -275,6 +311,23 @@ struct SettingsView: View {
         paymentReminderDays = s.paymentReminderDaysBefore
         biometricLockMandatory = s.biometricLockMandatory
         terminalCommissionRate = s.terminalCommissionRate * 100
+    }
+
+    private func confirmAndExecuteWipe() {
+        DataResetManager.shared.authenticateAndWipe(
+            modelContext: modelContext,
+            onSuccess: {
+                loadInitialSettings()
+                appState.selectedTab = .dashboard
+                appState.isOnboardingPresented = true
+            },
+            onFailure: { error in
+                if let error = error {
+                    alertMessage = "Autenticación no completada: \(error.localizedDescription)"
+                    isShowingAlert = true
+                }
+            }
+        )
     }
 }
 
