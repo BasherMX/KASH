@@ -66,7 +66,7 @@ final class CreditCard {
 
     /// Capacidad de endeudamiento restante (NO es dinero disponible propio)
     var availableCredit: Decimal {
-        max(0, creditLimit - currentBalance)
+        max(0 as Decimal, creditLimit - currentBalance)
     }
 
     /// Ratio de utilización del crédito [0.0 - 1.0+]

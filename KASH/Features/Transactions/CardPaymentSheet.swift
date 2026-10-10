@@ -176,7 +176,7 @@ struct CardPaymentSheet: View {
         if let balances = destCard.balances, !balances.isEmpty {
             let sorted = balances.sorted { $0.recordedAt > $1.recordedAt }
             if let latest = sorted.first {
-                latest.balanceUsed = max(0, latest.balanceUsed - amount)
+                latest.balanceUsed = max(0 as Decimal, latest.balanceUsed - amount)
             }
         }
 
@@ -187,7 +187,7 @@ struct CardPaymentSheet: View {
                 upcoming.paymentDate = paymentDate
             } else {
                 upcoming.status = .partial
-                upcoming.actualAmountToPay = max(0, upcoming.actualAmountToPay - amount)
+                upcoming.actualAmountToPay = max(0 as Decimal, upcoming.actualAmountToPay - amount)
             }
         }
 
