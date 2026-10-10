@@ -47,16 +47,22 @@ jobs:
 
       - name: Verify Build Status
         run: |
-          echo "## Xcodebuild Output Log" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat build_output.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
           if grep -q "BUILD SUCCEEDED" build_output.log; then
             echo "BUILD SUCCEEDED"
           else
             echo "BUILD FAILED"
             exit 1
           fi
+
+      - name: Push Build Log to Repo
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp build_output.log BUILD_LOG.txt || true
+          git add BUILD_LOG.txt || true
+          git commit -m "ci: update BUILD_LOG.txt [skip ci]" || true
+          git push origin main || true
 
       - name: Create Zip Artifact
         run: |
