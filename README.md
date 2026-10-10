@@ -11,7 +11,7 @@ KASH es una aplicación iOS nativa de grado financiero, de arquitectura **100% o
 1. **Regla de Oro Financiera:**  
    El disponible en tarjetas de crédito jamás se computa como liquidez ni patrimonio. La *Liquidez Real* solo considera activos propios (débito, efectivo, inversiones) menos pasivos consolidados.
 2. **Arquitectura 100% Offline-First y Segura:**  
-   Persistencia local en **SwiftData** protegida con `FileProtectionType.completeFileProtectionUnlessOpen` y encriptación de hardware en el Secure Enclave.
+   Persistencia local en **SwiftData** protegida con `FileProtectionType.completeUnlessOpen` y encriptación de hardware en el Secure Enclave.
 3. **Autenticación Biométrica Obligatoria:**  
    Soporte para Face ID y Touch ID con protección Privacy Shield Blur al pasar a segundo plano.
 4. **Modo Privacidad Rápido (👁️):**  

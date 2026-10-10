@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Foundation
 
 // MARK: - KASH App Entry Point
 @main
@@ -27,12 +28,12 @@ struct KASHApp: App {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             
             // Garantizar que la base de datos local cuente con protección completa de hardware de iOS
-            // FileProtectionType.completeFileProtectionUnlessOpen (Secure Enclave encriptado en reposo)
+            // FileProtectionType.completeUnlessOpen (Secure Enclave encriptado en reposo)
             let storeURL = modelConfiguration.url
             let path = storeURL.path
             if FileManager.default.fileExists(atPath: path) {
                 try? FileManager.default.setAttributes(
-                    [.protectionKey: FileProtectionType.completeFileProtectionUnlessOpen],
+                    [.protectionKey: FileProtectionType.completeUnlessOpen],
                     ofItemAtPath: path
                 )
             }
