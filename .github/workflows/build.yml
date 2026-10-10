@@ -30,7 +30,7 @@ jobs:
           xcodebuild build \
             -project KASH.xcodeproj \
             -scheme KASH \
-            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
