@@ -28,6 +28,8 @@ jobs:
           name: KASH
           options:
             bundleIdPrefix: com.kash.app
+            xcodeVersion: "15.4"
+            minimumXcodeVersion: "15.0"
             deploymentTarget:
               iOS: 17.0
           targets:
