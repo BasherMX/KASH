@@ -18,8 +18,6 @@ extension Color {
 
 // MARK: - Fallback dinámico nativo para cuando no se usan Asset Catalogs
 struct KashColors {
-    @Environment(\.colorScheme) private static var colorScheme
-
     static func backgroundPrimary(for scheme: ColorScheme) -> Color {
         scheme == .dark ? Color(hex: "#0B0E14") : Color(hex: "#F8FAFC")
     }
