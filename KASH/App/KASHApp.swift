@@ -21,8 +21,7 @@ struct KASHApp: App {
         
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false,
-            allowsSave: true
+            isStoredInMemoryOnly: false
         )
 
         do {
@@ -31,7 +30,7 @@ struct KASHApp: App {
             // Garantizar que la base de datos local cuente con protección completa de hardware de iOS
             // FileProtectionType.completeFileProtectionUnlessOpen (Secure Enclave encriptado en reposo)
             let storeURL = modelConfiguration.url
-            let path = storeURL.path()
+            let path = storeURL.path
             if FileManager.default.fileExists(atPath: path) {
                 try? FileManager.default.setAttributes(
                     [.protectionKey: FileProtectionType.completeFileProtectionUnlessOpen],
