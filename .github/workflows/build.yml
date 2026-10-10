@@ -49,7 +49,7 @@ jobs:
         if: always()
         run: |
           echo "=== BASE64 LOG START ==="
-          base64 build_output.log
+          base64 < build_output.log
           echo "=== BASE64 LOG END ==="
 
       - name: Verify Build Status
