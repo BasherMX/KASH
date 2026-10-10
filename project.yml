@@ -1,0 +1,14 @@
+name: KASH
+options:
+  bundleIdPrefix: com.kash.app
+  deploymentTarget:
+    iOS: 17.0
+targets:
+  KASH:
+    type: application
+    platform: iOS
+    deploymentTarget: 17.0
+    sources:
+      - path: KASH
+    info:
+      path: KASH/Info.plist
