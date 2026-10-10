@@ -48,6 +48,8 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/output"
           APP_PATH=$(find build -name "KASH.app" -type d | head -n 1)
           echo "Found built app at: $APP_PATH"
+          /usr/libexec/PlistBuddy -c "Set :NSFaceIDUsageDescription 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$APP_PATH/Info.plist" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$APP_PATH/Info.plist"
           cd "$(dirname "$APP_PATH")"
           zip -r "$GITHUB_WORKSPACE/output/KASH-iOS-Simulator.app.zip" "KASH.app"
 
@@ -80,6 +82,10 @@ jobs:
           mkdir -p Payload
           DEVICE_APP=$(find build_device/Build/Products -name "KASH.app" -type d | head -n 1)
           echo "Found Device App at: $DEVICE_APP"
+          /usr/libexec/PlistBuddy -c "Set :NSFaceIDUsageDescription 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$DEVICE_APP/Info.plist" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$DEVICE_APP/Info.plist"
+          echo "=== Verified Info.plist NSFaceIDUsageDescription ==="
+          /usr/libexec/PlistBuddy -c "Print :NSFaceIDUsageDescription" "$DEVICE_APP/Info.plist"
           cp -R "$DEVICE_APP" Payload/
           zip -r "$GITHUB_WORKSPACE/output/KASH.ipa" Payload
 

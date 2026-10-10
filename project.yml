@@ -14,6 +14,10 @@ targets:
           - Info.plist
     info:
       path: KASH/Info.plist
+      properties:
+        NSFaceIDUsageDescription: "KASH requiere autenticación biométrica para proteger tus datos financieros."
     settings:
-      GENERATE_INFOPLIST_FILE: false
+      GENERATE_INFOPLIST_FILE: true
+      INFOPLIST_FILE: KASH/Info.plist
+      INFOPLIST_KEY_NSFaceIDUsageDescription: "KASH requiere autenticación biométrica para proteger tus datos financieros."
       PRODUCT_BUNDLE_IDENTIFIER: com.kash.app
