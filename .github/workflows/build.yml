@@ -42,7 +42,13 @@ jobs:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build_output.log || (echo "=== XCODEBUILD ERROR LOG ===" && cat build_output.log && exit 1)
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build_output.log || (
+              echo "## Build Failure Log" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              tail -n 100 build_output.log >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              exit 1
+            )
 
       - name: Create Zip Artifact
         run: |
