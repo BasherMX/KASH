@@ -47,6 +47,10 @@ jobs:
 
       - name: Verify Build Status
         run: |
+          echo "## Xcodebuild Output Log" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat build_output.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
           if grep -q "BUILD SUCCEEDED" build_output.log; then
             echo "BUILD SUCCEEDED"
           else
