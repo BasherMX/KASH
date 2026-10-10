@@ -95,6 +95,7 @@ struct RootView: View {
                     .zIndex(100)
             }
         }
+        .dismissKeyboardOnTap()
         .animation(.easeInOut(duration: 0.25), value: authManager.isUnlocked)
         .animation(.easeInOut(duration: 0.2), value: appState.isPrivacyBlurred)
         .sheet(isPresented: $appState.isQuickTransactionPresented) {

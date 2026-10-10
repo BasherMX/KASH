@@ -146,4 +146,67 @@ struct KASHFinancialTests {
         let settings = UserSettings()
         #expect(settings.biometricLockMandatory == false)
     }
+
+    @Test("Verifica decodificación de DTOs del Paquete Universal de Respaldo")
+    func testBackupPackageDecoding() throws {
+        let sampleJSON = """
+        {
+          "manifest": {
+            "schemaVersion": "2.2.0",
+            "appVersion": "1.2.0",
+            "buildNumber": 3,
+            "exportedAt": "2026-10-10T18:00:00Z",
+            "deviceModel": "iPhone",
+            "entityCounts": {
+              "creditCards": 1,
+              "liquidityAccounts": 1,
+              "categories": 1,
+              "monthlyRecords": 1,
+              "transactions": 1,
+              "upcomingPayments": 1
+            },
+            "checksumSHA256": "test_sha256"
+          },
+          "settings": {
+            "monthlyIncome": 35000.0,
+            "debtAllocationPercentage": 0.5,
+            "debtReminderDayOfMonth": 5,
+            "paymentReminderDaysBefore": 3,
+            "biometricLockMandatory": false,
+            "isPrivacyModeEnabled": false,
+            "terminalCommissionRate": 0.0406
+          },
+          "categories": [],
+          "creditCards": [
+            {
+              "id": "CARD-1",
+              "name": "Plata",
+              "institution": "Plata",
+              "creditLimit": 40000.0,
+              "cutoffDay": 5,
+              "paymentDueDay": 25,
+              "annualInterestRate": 0.50,
+              "recommendedStrategy": null,
+              "colorHex": "#1E293B",
+              "iconName": "creditcard.fill",
+              "isActive": true,
+              "displayOrder": 1,
+              "createdAt": "2026-10-01T00:00:00Z"
+            }
+          ],
+          "liquidityAccounts": [],
+          "monthlyRecords": [],
+          "upcomingPayments": [],
+          "transactions": []
+        }
+        """
+
+        let data = sampleJSON.data(using: .utf8)!
+        let package = try JSONDecoder().decode(KASHBackupPackage.self, from: data)
+
+        #expect(package.manifest.appVersion == "1.2.0")
+        #expect(package.creditCards.count == 1)
+        #expect(package.creditCards.first?.name == "Plata")
+        #expect(package.creditCards.first?.creditLimit == 40000.0)
+    }
 }

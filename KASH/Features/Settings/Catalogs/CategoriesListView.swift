@@ -171,7 +171,7 @@ struct CategoryEditSheet: View {
                     .padding(.vertical, 8)
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
             .navigationTitle(categoryToEdit == nil ? "Nueva Categoría" : "Editar Categoría")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

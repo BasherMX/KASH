@@ -104,7 +104,7 @@ struct BatchLogSheet: View {
                     Label("Saldos Deudores por Tarjeta", systemImage: "creditcard.fill")
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
             .navigationTitle(isEditing ? "Editar Corte Mensual" : "Registrar Corte")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

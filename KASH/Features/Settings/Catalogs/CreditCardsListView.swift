@@ -249,7 +249,7 @@ struct CreditCardEditSheet: View {
                     Toggle("Tarjeta Activa", isOn: $isActive)
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
             .navigationTitle(cardToEdit == nil ? "Nueva Tarjeta" : "Editar Tarjeta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -192,7 +192,7 @@ struct LiquidityAccountEditSheet: View {
                     }
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
             .navigationTitle(accountToEdit == nil ? "Nueva Cuenta" : "Editar Cuenta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

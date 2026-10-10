@@ -169,7 +169,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Control TDC • KASH v1.1.0 (Build 2)")
+                        Text("Control TDC • KASH v1.2.0 (Build 3)")
                             .font(.kashMicro)
                             .foregroundStyle(.tertiary)
 
@@ -182,7 +182,7 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.clear)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
             .navigationTitle("Ajustes")
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -219,7 +219,24 @@ struct SettingsView: View {
         do {
             let url = try BackupManager.shared.generateUnifiedBackupJSON(modelContext: modelContext)
             self.exportURL = url
-            self.isShowingExportActivity = true
+
+            // Presentar nativamente en el view controller superior para garantizar apertura
+            if let windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+               let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }),
+               var topVC = keyWindow.rootViewController {
+                while let presented = topVC.presentedViewController {
+                    topVC = presented
+                }
+                let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                if let popover = activityVC.popoverPresentationController {
+                    popover.sourceView = topVC.view
+                    popover.sourceRect = CGRect(x: topVC.view.bounds.midX, y: topVC.view.bounds.midY, width: 0, height: 0)
+                    popover.permittedArrowDirections = []
+                }
+                topVC.present(activityVC, animated: true)
+            } else {
+                self.isShowingExportActivity = true
+            }
         } catch {
             alertMessage = "Error al exportar respaldo: \(error.localizedDescription)"
             isShowingAlert = true

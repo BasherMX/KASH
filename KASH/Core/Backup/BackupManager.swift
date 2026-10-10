@@ -192,74 +192,131 @@ final class BackupManager {
         var createdAccounts: [String: LiquidityAccount] = [:]
         var createdCategories: [String: TransactionCategory] = [:]
 
+        let existingCategories = (try? modelContext.fetch(FetchDescriptor<TransactionCategory>())) ?? []
+        let existingCards = (try? modelContext.fetch(FetchDescriptor<CreditCard>())) ?? []
+        let existingAccounts = (try? modelContext.fetch(FetchDescriptor<LiquidityAccount>())) ?? []
+        let existingMonthlyRecords = (try? modelContext.fetch(FetchDescriptor<MonthlyRecord>())) ?? []
+        let calendar = Calendar.current
+
         // A. Importar / Actualizar Categorías
         for catDTO in package.categories {
             let catType = TransactionType(rawValue: catDTO.categoryTypeRaw) ?? .expense
-            let category = TransactionCategory(
-                name: catDTO.name,
-                iconName: catDTO.iconName,
-                colorHex: catDTO.colorHex,
-                categoryType: catType,
-                isDefault: catDTO.isDefault
-            )
-            modelContext.insert(category)
+            let category: TransactionCategory
+            if let existing = existingCategories.first(where: { $0.id.uuidString == catDTO.id || $0.name.caseInsensitiveCompare(catDTO.name) == .orderedSame }) {
+                category = existing
+                category.iconName = catDTO.iconName
+                category.colorHex = catDTO.colorHex
+                category.categoryType = catType
+            } else {
+                category = TransactionCategory(
+                    name: catDTO.name,
+                    iconName: catDTO.iconName,
+                    colorHex: catDTO.colorHex,
+                    categoryType: catType,
+                    isDefault: catDTO.isDefault
+                )
+                modelContext.insert(category)
+            }
             createdCategories[catDTO.id] = category
             createdCategories[catDTO.name] = category
         }
 
-        // B. Importar Tarjetas de Crédito
+        // B. Importar / Actualizar Tarjetas de Crédito
         for cardDTO in package.creditCards {
-            let card = CreditCard(
-                name: cardDTO.name,
-                institution: cardDTO.institution,
-                creditLimit: Decimal(cardDTO.creditLimit),
-                cutoffDay: cardDTO.cutoffDay,
-                paymentDueDay: cardDTO.paymentDueDay,
-                annualInterestRate: cardDTO.annualInterestRate,
-                recommendedStrategy: cardDTO.recommendedStrategy ?? "",
-                colorHex: cardDTO.colorHex,
-                iconName: cardDTO.iconName,
-                isActive: cardDTO.isActive,
-                displayOrder: cardDTO.displayOrder
-            )
-            modelContext.insert(card)
+            let card: CreditCard
+            if let existing = existingCards.first(where: { $0.id.uuidString == cardDTO.id || $0.name.caseInsensitiveCompare(cardDTO.name) == .orderedSame }) {
+                card = existing
+                card.institution = cardDTO.institution
+                card.creditLimit = Decimal(cardDTO.creditLimit)
+                card.cutoffDay = cardDTO.cutoffDay
+                card.paymentDueDay = cardDTO.paymentDueDay
+                card.annualInterestRate = cardDTO.annualInterestRate
+                card.colorHex = cardDTO.colorHex
+                card.iconName = cardDTO.iconName
+                card.isActive = cardDTO.isActive
+                card.displayOrder = cardDTO.displayOrder
+            } else {
+                card = CreditCard(
+                    name: cardDTO.name,
+                    institution: cardDTO.institution,
+                    creditLimit: Decimal(cardDTO.creditLimit),
+                    cutoffDay: cardDTO.cutoffDay,
+                    paymentDueDay: cardDTO.paymentDueDay,
+                    annualInterestRate: cardDTO.annualInterestRate,
+                    recommendedStrategy: cardDTO.recommendedStrategy ?? "",
+                    colorHex: cardDTO.colorHex,
+                    iconName: cardDTO.iconName,
+                    isActive: cardDTO.isActive,
+                    displayOrder: cardDTO.displayOrder
+                )
+                modelContext.insert(card)
+            }
             createdCards[cardDTO.id] = card
             createdCards[cardDTO.name] = card
         }
 
-        // C. Importar Cuentas de Débito y Efectivo
+        // C. Importar / Actualizar Cuentas de Débito y Efectivo
         for accDTO in package.liquidityAccounts {
             let accType = AccountType(rawValue: accDTO.accountTypeRaw) ?? .debit
-            let account = LiquidityAccount(
-                name: accDTO.name,
-                institution: accDTO.institution,
-                availableBalance: Decimal(accDTO.availableBalance),
-                accountType: accType,
-                colorHex: accDTO.colorHex,
-                iconName: accDTO.iconName,
-                isActive: accDTO.isActive
-            )
-            modelContext.insert(account)
+            let account: LiquidityAccount
+            if let existing = existingAccounts.first(where: { $0.id.uuidString == accDTO.id || $0.name.caseInsensitiveCompare(accDTO.name) == .orderedSame }) {
+                account = existing
+                account.institution = accDTO.institution
+                account.availableBalance = Decimal(accDTO.availableBalance)
+                account.accountType = accType
+                account.colorHex = accDTO.colorHex
+                account.iconName = accDTO.iconName
+                account.isActive = accDTO.isActive
+            } else {
+                account = LiquidityAccount(
+                    name: accDTO.name,
+                    institution: accDTO.institution,
+                    availableBalance: Decimal(accDTO.availableBalance),
+                    accountType: accType,
+                    colorHex: accDTO.colorHex,
+                    iconName: accDTO.iconName,
+                    isActive: accDTO.isActive
+                )
+                modelContext.insert(account)
+            }
             createdAccounts[accDTO.id] = account
             createdAccounts[accDTO.name] = account
         }
 
-        // D. Importar Cortes Mensuales y Balances
+        // D. Importar / Actualizar Cortes Mensuales y Balances (1 corte estricto por mes)
         for recordDTO in package.monthlyRecords {
             let periodDate = isoFormatter.date(from: recordDTO.periodDate) ?? Date()
-            let record = MonthlyRecord(periodDate: periodDate, notes: recordDTO.notes)
-            modelContext.insert(record)
+            let targetComps = calendar.dateComponents([.year, .month], from: periodDate)
+
+            let record: MonthlyRecord
+            if let existing = existingMonthlyRecords.first(where: {
+                let c = calendar.dateComponents([.year, .month], from: $0.periodDate)
+                return c.year == targetComps.year && c.month == targetComps.month
+            }) {
+                record = existing
+                if let n = recordDTO.notes { record.notes = n }
+            } else {
+                record = MonthlyRecord(periodDate: periodDate, notes: recordDTO.notes)
+                modelContext.insert(record)
+            }
 
             for bDTO in recordDTO.balances {
                 let card = createdCards[bDTO.cardId] ?? createdCards[bDTO.cardName]
                 let recordedAt = isoFormatter.date(from: bDTO.recordedAt) ?? periodDate
-                let balance = CardMonthlyBalance(
-                    balanceUsed: Decimal(bDTO.balanceUsed),
-                    recordedAt: recordedAt,
-                    card: card,
-                    monthlyRecord: record
-                )
-                modelContext.insert(balance)
+                let amount = Decimal(bDTO.balanceUsed)
+
+                if let existingBalance = record.balances?.first(where: { $0.card?.name == card?.name || ($0.card != nil && $0.card?.id == card?.id) }) {
+                    existingBalance.balanceUsed = amount
+                    existingBalance.recordedAt = recordedAt
+                } else {
+                    let balance = CardMonthlyBalance(
+                        balanceUsed: amount,
+                        recordedAt: recordedAt,
+                        card: card,
+                        monthlyRecord: record
+                    )
+                    modelContext.insert(balance)
+                }
             }
         }
 

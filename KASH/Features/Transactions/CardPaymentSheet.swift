@@ -124,7 +124,7 @@ struct CardPaymentSheet: View {
                     Label("Monto del Abono", systemImage: "dollarsign.circle.fill")
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
             .navigationTitle("Pagar Tarjeta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

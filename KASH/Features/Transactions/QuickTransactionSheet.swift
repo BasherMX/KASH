@@ -115,7 +115,7 @@ struct QuickTransactionSheet: View {
                     TextField("Notas adicionales (opcional)", text: $notes)
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
             .navigationTitle(isEditing ? "Editar Movimiento" : (transactionType == .expense ? "Nuevo Gasto" : "Nuevo Ingreso"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
