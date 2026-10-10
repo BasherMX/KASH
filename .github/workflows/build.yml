@@ -22,8 +22,6 @@ jobs:
             sudo xcode-select -s /Applications/Xcode_16.0.app
           elif [ -d "/Applications/Xcode_16.1.app" ]; then
             sudo xcode-select -s /Applications/Xcode_16.1.app
-          elif [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app
           else
             sudo xcode-select -s /Applications/Xcode.app
           fi
@@ -46,7 +44,7 @@ jobs:
               platform: iOS
               deploymentTarget: 17.0
               sources:
-                - KASH
+                - path: KASH
               info:
                 path: KASH/Info.plist
                 properties:
@@ -58,7 +56,22 @@ jobs:
                   UISupportedInterfaceOrientations:
                     - UIInterfaceOrientationPortrait
                   NSFaceIDUsageDescription: "KASH requiere Face ID para proteger tus datos financieros."
-                  NSSupportsLiveActivities: true
+            KASHWidgets:
+              type: app-extension
+              platform: iOS
+              deploymentTarget: 17.0
+              sources:
+                - path: KASHWidgets
+                - path: KASH/Models
+                - path: KASH/Core/DesignSystem
+              info:
+                properties:
+                  CFBundleDisplayName: KASH Widgets
+                  CFBundleIdentifier: com.kash.app.widgets
+                  CFBundleShortVersionString: "1.0.0"
+                  CFBundleVersion: "1"
+                  NSExtension:
+                    NSExtensionPointIdentifier: com.apple.widgetkit-extension
           EOF
           xcodegen generate
 
