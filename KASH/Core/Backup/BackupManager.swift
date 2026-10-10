@@ -197,14 +197,18 @@ final class BackupManager {
         for c in cards {
             cardsCSV += "\"\(c.id)\",\"\(c.name)\",\"\(c.institution)\",\(c.creditLimit),\(c.cutoffDay),\(c.paymentDueDay),\(c.annualInterestRate),\"\(c.recommendedStrategy)\",\(c.isActive)\n"
         }
-        try cardsCSV.data(using: .utf8)?.write(to: outputDir.appendingPathComponent("tarjetas.csv"))
+        if let data = cardsCSV.data(using: .utf8) {
+            try data.write(to: outputDir.appendingPathComponent("tarjetas.csv"))
+        }
 
         // historial_mensual.csv
         var recordsCSV = "periodo_corte,deuda_total,notas\n"
         for r in records {
             recordsCSV += "\"\(r.periodDate.formatted(date: .numeric, time: .omitted))\",\(r.totalDebt),\"\(r.notes ?? "")\"\n"
         }
-        try recordsCSV.data(using: .utf8)?.write(to: outputDir.appendingPathComponent("historial_mensual.csv"))
+        if let data = recordsCSV.data(using: .utf8) {
+            try data.write(to: outputDir.appendingPathComponent("historial_mensual.csv"))
+        }
 
         // transacciones.csv
         var txCSV = "id,fecha,concepto,monto,tipo,cuenta_o_tarjeta,categoria,notas\n"
@@ -212,7 +216,9 @@ final class BackupManager {
             let accountName = t.destinationCard?.name ?? t.creditCard?.name ?? t.liquidityAccount?.name ?? "N/A"
             txCSV += "\"\(t.id)\",\"\(t.transactionDate.formatted(date: .numeric, time: .shortened))\",\"\(t.concept)\",\(t.amount),\"\(t.typeRaw)\",\"\(accountName)\",\"\(t.category?.name ?? "Sin categoría")\",\"\(t.notes ?? "")\"\n"
         }
-        try txCSV.data(using: .utf8)?.write(to: outputDir.appendingPathComponent("transacciones.csv"))
+        if let data = txCSV.data(using: .utf8) {
+            try data.write(to: outputDir.appendingPathComponent("transacciones.csv"))
+        }
     }
 
     private func formattedTimestamp() -> String {
