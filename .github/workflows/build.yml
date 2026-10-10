@@ -40,7 +40,7 @@ jobs:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO > build_output.log 2>&1 || (cat build_output.log && exit 1)
 
       - name: Create Zip Artifact
         run: |
