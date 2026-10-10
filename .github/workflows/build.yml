@@ -40,26 +40,7 @@ jobs:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO > build_output.log 2>&1 || true
-
-      - name: Print Xcode Build Log
-        run: cat build_output.log
-
-      - name: Base64 Output Log
-        if: always()
-        run: |
-          echo "=== BASE64 LOG START ==="
-          base64 < build_output.log
-          echo "=== BASE64 LOG END ==="
-
-      - name: Verify Build Status
-        run: |
-          if grep -i "BUILD SUCCEEDED" build_output.log; then
-            echo "BUILD SUCCEEDED MATCHED!"
-          else
-            echo "BUILD FAILED TO MATCH"
-            exit 1
-          fi
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Create Zip Artifact
         run: |
@@ -73,11 +54,3 @@ jobs:
           name: KASH-iOS-Simulator-App
           path: output/KASH-iOS-Simulator.app.zip
           retention-days: 7
-
-      - name: Upload Failure Log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-failure-log
-          path: build_output.log
-          retention-days: 1
