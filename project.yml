@@ -10,5 +10,7 @@ targets:
     deploymentTarget: 17.0
     sources:
       - path: KASH
+        excludes:
+          - Info.plist
     info:
       path: KASH/Info.plist
