@@ -192,9 +192,16 @@ struct LiquidityAccountEditSheet: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(accountToEdit == nil ? "Nueva Cuenta" : "Editar Cuenta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") {
+                        UIApplication.endEditing()
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") {
                         dismiss()

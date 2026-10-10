@@ -84,4 +84,28 @@ extension Color {
             opacity: Double(a) / 255
         )
     }
+
+    func toHex() -> String? {
+        let uic = UIColor(self)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard uic.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
+    }
+}
+
+// MARK: - Keyboard Dismiss Utilities
+extension View {
+    /// Permite descartar el teclado interactivamente y al hacer scroll o tap en espacios libres
+    func dismissKeyboardOnTap() -> some View {
+        self.scrollDismissesKeyboard(.interactively)
+    }
+}
+
+extension UIApplication {
+    static func endEditing() {
+        shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
 }

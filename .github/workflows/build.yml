@@ -50,17 +50,18 @@ jobs:
           echo "Found built app at: $APP_PATH"
           /usr/libexec/PlistBuddy -c "Set :NSFaceIDUsageDescription 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$APP_PATH/Info.plist" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '1'" "$APP_PATH/Info.plist" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '1'" "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.0'" "$APP_PATH/Info.plist" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.0'" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '2'" "$APP_PATH/Info.plist" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '2'" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.1.0'" "$APP_PATH/Info.plist" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.1.0'" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" "$APP_PATH/Info.plist" 2>/dev/null || true
 
           for APPEX in "$APP_PATH/PlugIns/"*.appex; do
             if [ -d "$APPEX" ]; then
-              /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '1'" "$APPEX/Info.plist" 2>/dev/null || \
-              /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '1'" "$APPEX/Info.plist"
-              /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.0'" "$APPEX/Info.plist" 2>/dev/null || \
-              /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.0'" "$APPEX/Info.plist"
+              /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '2'" "$APPEX/Info.plist" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '2'" "$APPEX/Info.plist"
+              /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.1.0'" "$APPEX/Info.plist" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.1.0'" "$APPEX/Info.plist"
             fi
           done
 
@@ -100,10 +101,11 @@ jobs:
           # 1. Main App Info.plist adjustments
           /usr/libexec/PlistBuddy -c "Set :NSFaceIDUsageDescription 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$DEVICE_APP/Info.plist" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string 'KASH requiere autenticación biométrica para proteger tus datos financieros.'" "$DEVICE_APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '1'" "$DEVICE_APP/Info.plist" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '1'" "$DEVICE_APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.0'" "$DEVICE_APP/Info.plist" 2>/dev/null || \
-          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.0'" "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '2'" "$DEVICE_APP/Info.plist" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '2'" "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.1.0'" "$DEVICE_APP/Info.plist" 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.1.0'" "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" "$DEVICE_APP/Info.plist" 2>/dev/null || true
 
           echo "=== Main App Info.plist ==="
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$DEVICE_APP/Info.plist"
@@ -114,10 +116,10 @@ jobs:
           for APPEX in "$DEVICE_APP/PlugIns/"*.appex; do
             if [ -d "$APPEX" ]; then
               echo "=== Configuring App Extension: $APPEX ==="
-              /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '1'" "$APPEX/Info.plist" 2>/dev/null || \
-              /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '1'" "$APPEX/Info.plist"
-              /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.0.0'" "$APPEX/Info.plist" 2>/dev/null || \
-              /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.0.0'" "$APPEX/Info.plist"
+              /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '2'" "$APPEX/Info.plist" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '2'" "$APPEX/Info.plist"
+              /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.1.0'" "$APPEX/Info.plist" 2>/dev/null || \
+              /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.1.0'" "$APPEX/Info.plist"
               echo "Extension Bundle ID: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APPEX/Info.plist")"
               echo "Extension CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APPEX/Info.plist")"
               echo "Extension CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APPEX/Info.plist")"

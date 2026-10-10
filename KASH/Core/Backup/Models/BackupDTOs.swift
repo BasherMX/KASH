@@ -20,16 +20,27 @@ struct BackupManifest: Codable {
     }
 }
 
+// MARK: - Paquete Universal Completo de Respaldo KASH
+struct KASHBackupPackage: Codable {
+    let manifest: BackupManifest
+    let settings: UserSettingsDTO?
+    let creditCards: [CreditCardDTO]
+    let liquidityAccounts: [LiquidityAccountDTO]
+    let categories: [CategoryDTO]
+    let monthlyRecords: [MonthlyRecordDTO]
+    let upcomingPayments: [UpcomingPaymentDTO]
+    let transactions: [TransactionDTO]
+}
+
 // MARK: - DTOs para Serialización JSON Normalizada
 struct UserSettingsDTO: Codable {
     let monthlyIncome: Double
     let debtAllocationPercentage: Double
-    let debtReminderDayOfMonth: Int
+    let debtReminderDayOfMonth: Int?
     let paymentReminderDaysBefore: Int
     let biometricLockMandatory: Bool
     let isPrivacyModeEnabled: Bool
     let terminalCommissionRate: Double
-    let defaultCashbackRate: Double
 }
 
 struct CreditCardDTO: Codable {
@@ -40,7 +51,7 @@ struct CreditCardDTO: Codable {
     let cutoffDay: Int
     let paymentDueDay: Int
     let annualInterestRate: Double
-    let recommendedStrategy: String
+    let recommendedStrategy: String?
     let colorHex: String
     let iconName: String
     let isActive: Bool

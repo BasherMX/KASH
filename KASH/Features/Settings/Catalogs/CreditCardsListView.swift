@@ -20,12 +20,19 @@ struct CreditCardsListView: View {
                 } else {
                     Section {
                         ForEach(creditCards) { card in
-                            Button {
-                                selectedCardForEdit = card
+                            NavigationLink {
+                                CreditCardDetailView(card: card)
                             } label: {
                                 CreditCardRow(card: card)
                             }
-                            .tint(.primary)
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    selectedCardForEdit = card
+                                } label: {
+                                    Label("Editar", systemImage: "pencil")
+                                }
+                                .tint(Color(hex: "#2563EB"))
+                            }
                         }
                         .onDelete(perform: deleteCards)
                     } header: {
@@ -122,13 +129,19 @@ struct CreditCardEditSheet: View {
     @State private var cutoffDay: Int = 1
     @State private var paymentDueDay: Int = 20
     @State private var annualInterestRatePercent: Double = 50.0
-    @State private var recommendedStrategy: String = ""
     @State private var selectedColorHex: String = "#1E293B"
     @State private var selectedIcon: String = "creditcard.fill"
     @State private var isActive: Bool = true
 
     private let availableColors = [
-        "#1E293B", "#2563EB", "#059669", "#D97706", "#DC2626", "#7C3AED", "#DB2777", "#0891B2"
+        "#1E293B", "#0F172A", "#334155", // Slate / Grafito
+        "#1E3A8A", "#2563EB", "#3B82F6", // Azul Real / Cobalto / Cielo
+        "#0D9488", "#059669", "#10B981", // Teal / Esmeralda / Menta
+        "#D97706", "#F59E0B", "#EA580C", // Ámbar / Oro / Naranja
+        "#DC2626", "#EF4444", "#991B1B", // Rojo Carmesí / Rubí / Vino
+        "#7C3AED", "#8B5CF6", "#6366F1", // Púrpura / Violeta / Índigo
+        "#DB2777", "#EC4899", "#BE185D", // Rosa Mexicano / Magenta
+        "#0891B2", "#0284C7", "#475569"  // Cian / Océano / Titanio
     ]
 
     private let availableIcons = [
@@ -160,37 +173,56 @@ struct CreditCardEditSheet: View {
                     }
                 }
 
-                Section("Condiciones Financieras y Estrategia") {
+                Section("Condiciones Financieras") {
                     HStack {
                         Text("Tasa Anual: \(annualInterestRatePercent, specifier: "%.1f")%")
                         Spacer()
                     }
                     Slider(value: $annualInterestRatePercent, in: 0...150, step: 0.5)
-
-                    TextField("Estrategia / Cashback (ej. 5% Gasolina)", text: $recommendedStrategy)
                 }
 
                 Section("Personalización Visual") {
                     // Selector de color
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(availableColors, id: \.self) { hex in
-                                Circle()
-                                    .fill(Color(hex: hex))
-                                    .frame(width: 34, height: 34)
-                                    .overlay {
-                                        if selectedColorHex == hex {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 14, weight: .bold))
-                                                .foregroundStyle(.white)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Paleta de Color")
+                            .font(.kashCaption)
+                            .foregroundStyle(.secondary)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(availableColors, id: \.self) { hex in
+                                    Circle()
+                                        .fill(Color(hex: hex))
+                                        .frame(width: 34, height: 34)
+                                        .overlay {
+                                            if selectedColorHex.uppercased() == hex.uppercased() {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 14, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                            }
                                         }
-                                    }
-                                    .onTapGesture {
-                                        selectedColorHex = hex
-                                    }
+                                        .onTapGesture {
+                                            selectedColorHex = hex
+                                        }
+                                }
                             }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
+
+                        HStack {
+                            Text("Color personalizado:")
+                                .font(.kashCaption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            ColorPicker("", selection: Binding(
+                                get: { Color(hex: selectedColorHex) },
+                                set: { newCol in
+                                    if let h = newCol.toHex() {
+                                        selectedColorHex = h
+                                    }
+                                }
+                            ))
+                        }
                     }
 
                     // Selector de ícono
@@ -217,9 +249,16 @@ struct CreditCardEditSheet: View {
                     Toggle("Tarjeta Activa", isOn: $isActive)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(cardToEdit == nil ? "Nueva Tarjeta" : "Editar Tarjeta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") {
+                        UIApplication.endEditing()
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") {
                         dismiss()
@@ -240,7 +279,6 @@ struct CreditCardEditSheet: View {
                     cutoffDay = card.cutoffDay
                     paymentDueDay = card.paymentDueDay
                     annualInterestRatePercent = card.annualInterestRate * 100
-                    recommendedStrategy = card.recommendedStrategy
                     selectedColorHex = card.colorHex
                     selectedIcon = card.iconName
                     isActive = card.isActive
@@ -260,7 +298,6 @@ struct CreditCardEditSheet: View {
             card.cutoffDay = cutoffDay
             card.paymentDueDay = paymentDueDay
             card.annualInterestRate = rateFraction
-            card.recommendedStrategy = recommendedStrategy
             card.colorHex = selectedColorHex
             card.iconName = selectedIcon
             card.isActive = isActive
@@ -272,7 +309,6 @@ struct CreditCardEditSheet: View {
                 cutoffDay: cutoffDay,
                 paymentDueDay: paymentDueDay,
                 annualInterestRate: rateFraction,
-                recommendedStrategy: recommendedStrategy,
                 colorHex: selectedColorHex,
                 iconName: selectedIcon,
                 isActive: isActive

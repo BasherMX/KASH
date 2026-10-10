@@ -9,6 +9,7 @@ struct TransactionsListView: View {
     @State private var selectedFilter: TransactionType? = nil
     @State private var isQuickTxSheetPresented = false
     @State private var isCardPaymentSheetPresented = false
+    @State private var transactionToEdit: Transaction? = nil
 
     var body: some View {
         NavigationStack {
@@ -49,12 +50,25 @@ struct TransactionsListView: View {
                     List {
                         ForEach(filteredTransactions) { tx in
                             TransactionRow(tx: tx)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    transactionToEdit = tx
+                                }
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        transactionToEdit = tx
+                                    } label: {
+                                        Label("Editar", systemImage: "pencil")
+                                    }
+                                    .tint(Color(hex: "#2563EB"))
+                                }
                         }
                         .onDelete(perform: deleteTransactions)
                     }
                     .listStyle(.plain)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Movimientos")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -85,6 +99,9 @@ struct TransactionsListView: View {
             }
             .sheet(isPresented: $isCardPaymentSheetPresented) {
                 CardPaymentSheet()
+            }
+            .sheet(item: $transactionToEdit) { tx in
+                QuickTransactionSheet(editingTransaction: tx)
             }
         }
     }

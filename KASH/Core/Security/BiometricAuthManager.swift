@@ -12,7 +12,7 @@ import Security
 final class BiometricAuthManager: ObservableObject {
     static let shared = BiometricAuthManager()
 
-    @Published var isUnlocked: Bool = false
+    @Published var isUnlocked: Bool = true
     @Published var biometryType: LABiometryType = .none
     @Published var authErrorMessage: String? = nil
 

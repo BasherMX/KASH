@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 // MARK: - SettingsView
 struct SettingsView: View {
@@ -9,13 +10,16 @@ struct SettingsView: View {
 
     @State private var monthlyIncomeString: String = ""
     @State private var debtAllocationPercentage: Double = 0.60
-    @State private var debtReminderDay: Int = 5
     @State private var paymentReminderDays: Int = 3
-    @State private var biometricLockMandatory: Bool = true
+    @State private var biometricLockMandatory: Bool = false
     @State private var terminalCommissionRate: Double = 4.06
-    @State private var defaultCashbackRate: Double = 10.0
-    @State private var isShowingExportSheet: Bool = false
+
+    // Backup & Export States
+    @State private var exportURL: URL? = nil
+    @State private var isShowingExportActivity: Bool = false
     @State private var isShowingImportPicker: Bool = false
+    @State private var alertMessage: String = ""
+    @State private var isShowingAlert: Bool = false
 
     private var currentSettings: UserSettings {
         userSettingsList.first ?? UserSettings()
@@ -39,6 +43,8 @@ struct SettingsView: View {
                         }
                 } header: {
                     Label("Seguridad & Privacidad", systemImage: "shield.lefthalf.filled")
+                } footer: {
+                    Text("Por defecto, la autenticación biométrica está desactivada y solo se solicitará si decides activarla aquí.")
                 }
 
                 // SECCIÓN 2: CATÁLOGOS DE CUENTAS Y PASIVOS
@@ -66,16 +72,6 @@ struct SettingsView: View {
 
                 // SECCIÓN 3: NOTIFICACIONES Y RECORDATORIOS
                 Section {
-                    Picker("Día del mes para corte de deuda", selection: $debtReminderDay) {
-                        ForEach(1...31, id: \.self) { day in
-                            Text("Día \(day)").tag(day)
-                        }
-                    }
-                    .onChange(of: debtReminderDay) { _, newValue in
-                        currentSettings.debtReminderDayOfMonth = newValue
-                        try? modelContext.save()
-                    }
-
                     Picker("Avisar vencimiento de pago con", selection: $paymentReminderDays) {
                         Text("1 día de anticipación").tag(1)
                         Text("2 días de anticipación").tag(2)
@@ -88,6 +84,8 @@ struct SettingsView: View {
                     }
                 } header: {
                     Label("Notificaciones y Recordatorios", systemImage: "bell.badge.fill")
+                } footer: {
+                    Text("Los días de corte se configuran de forma específica en cada tarjeta.")
                 }
 
                 // SECCIÓN 4: PARÁMETROS DE SIMULADORES Y FINANZAS
@@ -125,12 +123,6 @@ struct SettingsView: View {
                         Spacer()
                         Text("\(terminalCommissionRate, specifier: "%.2f")%")
                     }
-
-                    HStack {
-                        Text("Cashback Promedio (%)")
-                        Spacer()
-                        Text("\(defaultCashbackRate, specifier: "%.1f")%")
-                    }
                 } header: {
                     Label("Parámetros y Capacidad de Pago", systemImage: "chart.line.uptrend.xyaxis")
                 }
@@ -138,13 +130,13 @@ struct SettingsView: View {
                 // SECCIÓN 5: COPIAS DE SEGURIDAD Y PORTABILIDAD
                 Section {
                     Button {
-                        isShowingExportSheet = true
+                        exportBackup()
                     } label: {
                         HStack {
-                            Label("Exportar Respaldo Universal (ZIP Modular)", systemImage: "archivebox.fill")
+                            Label("Exportar Respaldo Universal (JSON)", systemImage: "square.and.arrow.up.fill")
                             Spacer()
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 14))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -153,17 +145,20 @@ struct SettingsView: View {
                         isShowingImportPicker = true
                     } label: {
                         HStack {
-                            Label("Importar Respaldo (ZIP / JSON / CSV)", systemImage: "square.and.arrow.down.fill")
+                            Label("Importar Respaldo (JSON)", systemImage: "square.and.arrow.down.fill")
                             Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
                         }
                     }
                 } header: {
                     Label("Copias de Seguridad y Portabilidad", systemImage: "arrow.triangle.2.circlepath")
                 } footer: {
-                    Text("Los respaldos son 100% compatibles con hojas de cálculo y bases de datos relacionales sin bloqueo de proveedor.")
+                    Text("Los respaldos son 100% compatibles con JSON universal sin bloqueo de proveedor. Puedes guardar en Archivos, compartir vía AirDrop o restaurar en cualquier momento.")
                 }
 
-                // SECCIÓN 6: PIE DE PÁGINA DEL SISTEMA (FOOTER OBLIGATORIO)
+                // SECCIÓN 6: PIE DE PÁGINA DEL SISTEMA
                 Section {
                     VStack(alignment: .center, spacing: 8) {
                         HStack(spacing: 6) {
@@ -174,7 +169,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Control TDC • KASH v1.0.0 (Build 1)")
+                        Text("Control TDC • KASH v1.1.0 (Build 2)")
                             .font(.kashMicro)
                             .foregroundStyle(.tertiary)
 
@@ -187,15 +182,66 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.clear)
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Ajustes")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    PrivacyToggleButton()
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") {
+                        UIApplication.endEditing()
+                    }
                 }
+            }
+            .sheet(isPresented: $isShowingExportActivity) {
+                if let url = exportURL {
+                    ShareSheet(activityItems: [url])
+                }
+            }
+            .fileImporter(
+                isPresented: $isShowingImportPicker,
+                allowedContentTypes: [.json, .data],
+                allowsMultipleSelection: false
+            ) { result in
+                handleImportResult(result)
+            }
+            .alert("Copia de Seguridad KASH", isPresented: $isShowingAlert) {
+                Button("Entendido", role: .cancel) {}
+            } message: {
+                Text(alertMessage)
             }
             .onAppear {
                 loadInitialSettings()
             }
+        }
+    }
+
+    private func exportBackup() {
+        do {
+            let url = try BackupManager.shared.generateUnifiedBackupJSON(modelContext: modelContext)
+            self.exportURL = url
+            self.isShowingExportActivity = true
+        } catch {
+            alertMessage = "Error al exportar respaldo: \(error.localizedDescription)"
+            isShowingAlert = true
+        }
+    }
+
+    private func handleImportResult(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let selectedURL = urls.first else { return }
+            do {
+                let summary = try BackupManager.shared.importBackup(from: selectedURL, modelContext: modelContext)
+                alertMessage = summary
+                isShowingAlert = true
+                loadInitialSettings()
+            } catch {
+                alertMessage = "Error al importar el archivo: \(error.localizedDescription)"
+                isShowingAlert = true
+            }
+        case .failure(let error):
+            alertMessage = "No se pudo seleccionar el archivo: \(error.localizedDescription)"
+            isShowingAlert = true
         }
     }
 
@@ -209,10 +255,23 @@ struct SettingsView: View {
         let s = currentSettings
         monthlyIncomeString = s.monthlyIncome > 0 ? "\(s.monthlyIncome)" : ""
         debtAllocationPercentage = s.debtAllocationPercentage
-        debtReminderDay = s.debtReminderDayOfMonth
         paymentReminderDays = s.paymentReminderDaysBefore
         biometricLockMandatory = s.biometricLockMandatory
         terminalCommissionRate = s.terminalCommissionRate * 100
-        defaultCashbackRate = s.defaultCashbackRate * 100
     }
+}
+
+// MARK: - UIActivityViewController Wrapper for SwiftUI
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: applicationActivities
+        )
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

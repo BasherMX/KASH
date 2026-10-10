@@ -88,7 +88,8 @@ struct RootView: View {
             .tint(Color(hex: "#2563EB"))
 
             // Privacy Blur / Biometric Lock Shield
-            if appState.isPrivacyBlurred || !authManager.isUnlocked {
+            let isBiometricMandatory = userSettings.first?.biometricLockMandatory ?? false
+            if appState.isPrivacyBlurred || (isBiometricMandatory && !authManager.isUnlocked) {
                 PrivacyShieldView()
                     .transition(.opacity)
                     .zIndex(100)
@@ -118,7 +119,7 @@ struct RootView: View {
     }
 
     private func handleScenePhaseChange(to newPhase: ScenePhase) {
-        let isBiometricMandatory = userSettings.first?.biometricLockMandatory ?? true
+        let isBiometricMandatory = userSettings.first?.biometricLockMandatory ?? false
         switch newPhase {
         case .active:
             appState.isPrivacyBlurred = false
@@ -139,7 +140,7 @@ struct RootView: View {
     }
 
     private func triggerInitialBiometricAuth() {
-        let isBiometricMandatory = userSettings.first?.biometricLockMandatory ?? true
+        let isBiometricMandatory = userSettings.first?.biometricLockMandatory ?? false
         if isBiometricMandatory {
             Task {
                 _ = await authManager.authenticate()

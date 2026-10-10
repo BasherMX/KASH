@@ -57,11 +57,19 @@ final class CreditCard {
         self.createdAt = Date()
     }
 
-    /// Saldo deudor vigente tomado del corte más reciente
+    /// Balances ordenados cronológicamente por la fecha del corte (del más reciente al más antiguo)
+    var sortedBalances: [CardMonthlyBalance] {
+        guard let balances = balances, !balances.isEmpty else { return [] }
+        return balances.sorted {
+            let d0 = $0.monthlyRecord?.periodDate ?? $0.recordedAt
+            let d1 = $1.monthlyRecord?.periodDate ?? $1.recordedAt
+            return d0 > d1
+        }
+    }
+
+    /// Saldo deudor vigente tomado del corte cronológico más reciente
     var currentBalance: Decimal {
-        guard let balances = balances, !balances.isEmpty else { return 0 }
-        let sorted = balances.sorted { $0.recordedAt > $1.recordedAt }
-        return sorted.first?.balanceUsed ?? 0
+        sortedBalances.first?.balanceUsed ?? 0
     }
 
     /// Capacidad de endeudamiento restante (NO es dinero disponible propio)

@@ -48,6 +48,7 @@ struct DashboardView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
+            .scrollDismissesKeyboard(.interactively)
             .scrollContentBackground(.hidden)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("KASH")
@@ -462,7 +463,12 @@ struct CreditCardsSnapshotCard: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
                         ForEach(cards.filter { $0.isActive }) { card in
-                            CreditCardMiniCard(card: card)
+                            NavigationLink {
+                                CreditCardDetailView(card: card)
+                            } label: {
+                                CreditCardMiniCard(card: card)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.vertical, 4)

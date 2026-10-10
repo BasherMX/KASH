@@ -103,4 +103,47 @@ struct KASHFinancialTests {
         let months = NSDecimalNumber(decimal: totalDebt / monthlyCapacity).doubleValue
         #expect(months == 3.0)
     }
+
+    @Test("Verifica que las tarjetas toman el corte cronológico más reciente, sin importar orden de inserción")
+    func testChronologicalCutsOrdering() {
+        let card = CreditCard(
+            name: "Plata Card",
+            institution: "Plata",
+            creditLimit: 50000,
+            cutoffDay: 15,
+            paymentDueDay: 5
+        )
+
+        let calendar = Calendar.current
+        var compsOct = DateComponents()
+        compsOct.year = 2026
+        compsOct.month = 10
+        compsOct.day = 15
+        let octDate = calendar.date(from: compsOct)!
+
+        var compsFeb = DateComponents()
+        compsFeb.year = 2026
+        compsFeb.month = 2
+        compsFeb.day = 15
+        let febDate = calendar.date(from: compsFeb)!
+
+        let recordOct = MonthlyRecord(periodDate: octDate)
+        let balanceOct = CardMonthlyBalance(balanceUsed: 18500, recordedAt: Date(), card: card, monthlyRecord: recordOct)
+
+        let recordFeb = MonthlyRecord(periodDate: febDate)
+        // Se crea el corte de febrero DESPUÉS en tiempo de ejecución (recordedAt posterior)
+        let balanceFeb = CardMonthlyBalance(balanceUsed: 4200, recordedAt: Date().addingTimeInterval(100), card: card, monthlyRecord: recordFeb)
+
+        // Se asignan ambos balances
+        card.balances = [balanceFeb, balanceOct]
+
+        // El saldo actual DEBE ser el de octubre 2026 (18,500) porque es cronológicamente más reciente que febrero 2026 (4,200)
+        #expect(card.currentBalance == 18500)
+    }
+
+    @Test("Verifica que Face ID está desactivado por defecto")
+    func testBiometricDefaultDisabled() {
+        let settings = UserSettings()
+        #expect(settings.biometricLockMandatory == false)
+    }
 }

@@ -2,10 +2,12 @@ import SwiftUI
 import SwiftData
 
 // MARK: - QuickTransactionSheet
-/// Captura rápida de transacciones: Compras y Gastos (en tarjeta o débito) e Ingresos
+/// Captura y edición rápida de transacciones: Compras y Gastos (en tarjeta o débito) e Ingresos
 struct QuickTransactionSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+
+    var editingTransaction: Transaction? = nil
 
     @Query private var creditCards: [CreditCard]
     @Query private var liquidityAccounts: [LiquidityAccount]
@@ -24,6 +26,10 @@ struct QuickTransactionSheet: View {
     enum PaymentMethod: String, CaseIterable {
         case creditCard = "Tarjeta de Crédito"
         case liquidity = "Cuenta / Efectivo"
+    }
+
+    private var isEditing: Bool {
+        editingTransaction != nil
     }
 
     var body: some View {
@@ -109,9 +115,16 @@ struct QuickTransactionSheet: View {
                     TextField("Notas adicionales (opcional)", text: $notes)
                 }
             }
-            .navigationTitle(transactionType == .expense ? "Nuevo Gasto" : "Nuevo Ingreso")
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(isEditing ? "Editar Movimiento" : (transactionType == .expense ? "Nuevo Gasto" : "Nuevo Ingreso"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") {
+                        UIApplication.endEditing()
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") {
                         dismiss()
@@ -125,20 +138,36 @@ struct QuickTransactionSheet: View {
                 }
             }
             .onAppear {
-                setupDefaults()
+                setupInitialValues()
             }
         }
     }
 
-    private func setupDefaults() {
-        if selectedCardId == nil {
-            selectedCardId = creditCards.first?.id
-        }
-        if selectedAccountId == nil {
-            selectedAccountId = liquidityAccounts.first?.id
-        }
-        if selectedCategoryId == nil {
-            selectedCategoryId = categories.first(where: { $0.categoryType == transactionType })?.id
+    private func setupInitialValues() {
+        if let tx = editingTransaction {
+            concept = tx.concept
+            amountString = "\(tx.amount)"
+            transactionDate = tx.transactionDate
+            transactionType = tx.type
+            if tx.creditCard != nil {
+                selectedPaymentMethod = .creditCard
+                selectedCardId = tx.creditCard?.id
+            } else if tx.liquidityAccount != nil {
+                selectedPaymentMethod = .liquidity
+                selectedAccountId = tx.liquidityAccount?.id
+            }
+            selectedCategoryId = tx.category?.id
+            notes = tx.notes ?? ""
+        } else {
+            if selectedCardId == nil {
+                selectedCardId = creditCards.first?.id
+            }
+            if selectedAccountId == nil {
+                selectedAccountId = liquidityAccounts.first?.id
+            }
+            if selectedCategoryId == nil {
+                selectedCategoryId = categories.first(where: { $0.categoryType == transactionType })?.id
+            }
         }
     }
 
@@ -148,25 +177,53 @@ struct QuickTransactionSheet: View {
         let account = liquidityAccounts.first(where: { $0.id == selectedAccountId })
         let category = categories.first(where: { $0.id == selectedCategoryId })
 
-        let tx = Transaction(
-            concept: concept,
-            amount: amount,
-            transactionDate: transactionDate,
-            type: transactionType,
-            notes: notes.isEmpty ? nil : notes,
-            creditCard: (transactionType == .expense && selectedPaymentMethod == .creditCard) ? card : nil,
-            liquidityAccount: (transactionType == .income || (transactionType == .expense && selectedPaymentMethod == .liquidity)) ? account : nil,
-            category: category
-        )
-        modelContext.insert(tx)
+        if let tx = editingTransaction {
+            // Revertir balance anterior si involucraba cuenta de liquidez
+            if tx.type == .expense, let oldAcc = tx.liquidityAccount {
+                oldAcc.availableBalance += tx.amount
+            } else if tx.type == .income, let oldAcc = tx.liquidityAccount {
+                oldAcc.availableBalance -= tx.amount
+            }
 
-        // Impacto atómico en saldos si fue con cuenta de liquidez
-        if transactionType == .expense && selectedPaymentMethod == .liquidity, let acc = account {
-            acc.availableBalance -= amount
-            acc.updatedAt = Date()
-        } else if transactionType == .income, let acc = account {
-            acc.availableBalance += amount
-            acc.updatedAt = Date()
+            // Actualizar campos
+            tx.concept = concept
+            tx.amount = amount
+            tx.transactionDate = transactionDate
+            tx.type = transactionType
+            tx.notes = notes.isEmpty ? nil : notes
+            tx.creditCard = (transactionType == .expense && selectedPaymentMethod == .creditCard) ? card : nil
+            tx.liquidityAccount = (transactionType == .income || (transactionType == .expense && selectedPaymentMethod == .liquidity)) ? account : nil
+            tx.category = category
+
+            // Aplicar nuevo impacto en liquidez
+            if transactionType == .expense && selectedPaymentMethod == .liquidity, let acc = account {
+                acc.availableBalance -= amount
+                acc.updatedAt = Date()
+            } else if transactionType == .income, let acc = account {
+                acc.availableBalance += amount
+                acc.updatedAt = Date()
+            }
+        } else {
+            let tx = Transaction(
+                concept: concept,
+                amount: amount,
+                transactionDate: transactionDate,
+                type: transactionType,
+                notes: notes.isEmpty ? nil : notes,
+                creditCard: (transactionType == .expense && selectedPaymentMethod == .creditCard) ? card : nil,
+                liquidityAccount: (transactionType == .income || (transactionType == .expense && selectedPaymentMethod == .liquidity)) ? account : nil,
+                category: category
+            )
+            modelContext.insert(tx)
+
+            // Impacto atómico en saldos si fue con cuenta de liquidez
+            if transactionType == .expense && selectedPaymentMethod == .liquidity, let acc = account {
+                acc.availableBalance -= amount
+                acc.updatedAt = Date()
+            } else if transactionType == .income, let acc = account {
+                acc.availableBalance += amount
+                acc.updatedAt = Date()
+            }
         }
 
         try? modelContext.save()

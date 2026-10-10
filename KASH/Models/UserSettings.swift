@@ -12,7 +12,6 @@ final class UserSettings {
     var biometricLockMandatory: Bool       // Face ID / Touch ID Obligatorio
     var isPrivacyModeEnabled: Bool         // Ocultar saldos por defecto
     var terminalCommissionRate: Double     // Tasa terminal para simulador (ej. 0.0406 = 4.06%)
-    var defaultCashbackRate: Double        // Cashback por defecto (ej. 0.10 = 10%)
     var lastBackupDate: Date?
 
     init(
@@ -20,10 +19,9 @@ final class UserSettings {
         debtAllocationPercentage: Double = 0.60,
         debtReminderDayOfMonth: Int = 5,
         paymentReminderDaysBefore: Int = 3,
-        biometricLockMandatory: Bool = true,
+        biometricLockMandatory: Bool = false,
         isPrivacyModeEnabled: Bool = false,
-        terminalCommissionRate: Double = 0.0406,
-        defaultCashbackRate: Double = 0.10
+        terminalCommissionRate: Double = 0.0406
     ) {
         self.id = UUID()
         self.monthlyIncome = monthlyIncome
@@ -33,7 +31,6 @@ final class UserSettings {
         self.biometricLockMandatory = biometricLockMandatory
         self.isPrivacyModeEnabled = isPrivacyModeEnabled
         self.terminalCommissionRate = terminalCommissionRate
-        self.defaultCashbackRate = defaultCashbackRate
         self.lastBackupDate = nil
     }
 }

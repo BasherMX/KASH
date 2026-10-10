@@ -171,9 +171,16 @@ struct CategoryEditSheet: View {
                     .padding(.vertical, 8)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(categoryToEdit == nil ? "Nueva Categoría" : "Editar Categoría")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") {
+                        UIApplication.endEditing()
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") {
                         dismiss()

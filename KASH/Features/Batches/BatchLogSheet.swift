@@ -2,11 +2,14 @@ import SwiftUI
 import SwiftData
 
 // MARK: - BatchLogSheet
-/// Formulario vertical ultra-rápido para registrar en ~15 segundos todos los saldos deudores
+/// Formulario vertical ultra-rápido para registrar o editar en ~15 segundos todos los saldos deudores
 /// de las tarjetas de crédito al día del corte mensual.
+/// Solo se permite un corte por mes (si se ingresa el mismo mes, se edita el existente).
 struct BatchLogSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+
+    var editingRecord: MonthlyRecord? = nil
 
     @Query(sort: \CreditCard.displayOrder) private var creditCards: [CreditCard]
     @Query(sort: \MonthlyRecord.periodDate, order: .reverse) private var existingRecords: [MonthlyRecord]
@@ -20,9 +23,37 @@ struct BatchLogSheet: View {
     @State private var balancesDict: [UUID: String] = [:]
     @State private var notes: String = ""
 
+    private var isEditing: Bool {
+        editingRecord != nil
+    }
+
+    private var duplicateMonthRecord: MonthlyRecord? {
+        let calendar = Calendar.current
+        let targetComps = calendar.dateComponents([.year, .month], from: selectedPeriodDate)
+        return existingRecords.first { rec in
+            if let editRec = editingRecord, rec.id == editRec.id {
+                return false
+            }
+            let c = calendar.dateComponents([.year, .month], from: rec.periodDate)
+            return c.year == targetComps.year && c.month == targetComps.month
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                if let dup = duplicateMonthRecord {
+                    Section {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundStyle(Color(hex: "#F59E0B"))
+                            Text("Ya existe un corte para \(dup.periodDate.formatted(.dateTime.month(.wide).year())). Al guardar, se actualizarán los datos de ese corte existente.")
+                                .font(.kashCaption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 Section {
                     DatePicker(
                         "Periodo del Mes",
@@ -34,7 +65,7 @@ struct BatchLogSheet: View {
                 } header: {
                     Label("Periodo de Corte", systemImage: "calendar")
                 } footer: {
-                    Text("Introduce el saldo deudor registrado en tu estado de cuenta para cada tarjeta.")
+                    Text("Solo se permite un corte por mes. Las tarjetas siempre toman el corte cronológico más reciente como el actual.")
                 }
 
                 Section {
@@ -73,16 +104,23 @@ struct BatchLogSheet: View {
                     Label("Saldos Deudores por Tarjeta", systemImage: "creditcard.fill")
                 }
             }
-            .navigationTitle("Corte Mensual Rápido")
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(isEditing ? "Editar Corte Mensual" : "Registrar Corte")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") {
+                        UIApplication.endEditing()
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Guardar Corte") {
+                    Button("Guardar") {
                         saveBatch()
                     }
                     .disabled(creditCards.isEmpty)
@@ -102,44 +140,57 @@ struct BatchLogSheet: View {
     }
 
     private func prefillBalances() {
-        for card in creditCards {
-            if card.currentBalance > 0 {
-                balancesDict[card.id] = "\(card.currentBalance)"
+        if let rec = editingRecord {
+            selectedPeriodDate = rec.periodDate
+            notes = rec.notes ?? ""
+            for balance in rec.balances ?? [] {
+                if let cardId = balance.card?.id {
+                    balancesDict[cardId] = "\(balance.balanceUsed)"
+                }
+            }
+        } else {
+            for card in creditCards {
+                if card.currentBalance > 0 {
+                    balancesDict[card.id] = "\(card.currentBalance)"
+                }
             }
         }
     }
 
     private func saveBatch() {
-        // Buscar si ya existe un corte para el mismo año y mes
         let calendar = Calendar.current
         let targetComps = calendar.dateComponents([.year, .month], from: selectedPeriodDate)
 
-        let existingRecord = existingRecords.first { rec in
-            let c = calendar.dateComponents([.year, .month], from: rec.periodDate)
-            return c.year == targetComps.year && c.month == targetComps.month
-        }
-
-        let record = existingRecord ?? MonthlyRecord(periodDate: selectedPeriodDate, notes: notes)
-        if existingRecord == nil {
-            modelContext.insert(record)
+        // 1. Determinar el registro a guardar
+        let recordToSave: MonthlyRecord
+        if let editRec = editingRecord {
+            recordToSave = editRec
+            recordToSave.periodDate = selectedPeriodDate
+            recordToSave.notes = notes.isEmpty ? nil : notes
+        } else if let existingRecord = duplicateMonthRecord {
+            recordToSave = existingRecord
+            recordToSave.periodDate = selectedPeriodDate
+            recordToSave.notes = notes.isEmpty ? nil : notes
         } else {
-            record.notes = notes
+            let newRec = MonthlyRecord(periodDate: selectedPeriodDate, notes: notes.isEmpty ? nil : notes)
+            modelContext.insert(newRec)
+            recordToSave = newRec
         }
 
+        // 2. Actualizar o insertar balances para cada tarjeta activa
         for card in creditCards where card.isActive {
             let amountString = balancesDict[card.id] ?? "0"
             let amount = Decimal(string: amountString.replacingOccurrences(of: ",", with: "")) ?? 0
 
-            // Actualizar o crear CardMonthlyBalance
-            if let existingBalance = record.balances?.first(where: { $0.card?.id == card.id }) {
+            if let existingBalance = recordToSave.balances?.first(where: { $0.card?.id == card.id }) {
                 existingBalance.balanceUsed = amount
-                existingBalance.recordedAt = Date()
+                existingBalance.recordedAt = selectedPeriodDate
             } else {
                 let newBalance = CardMonthlyBalance(
                     balanceUsed: amount,
-                    recordedAt: Date(),
+                    recordedAt: selectedPeriodDate,
                     card: card,
-                    monthlyRecord: record
+                    monthlyRecord: recordToSave
                 )
                 modelContext.insert(newBalance)
             }

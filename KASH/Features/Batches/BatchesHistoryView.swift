@@ -6,7 +6,11 @@ import SwiftData
 struct BatchesHistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MonthlyRecord.periodDate, order: .reverse) private var monthlyRecords: [MonthlyRecord]
+
     @State private var isBatchLogSheetPresented = false
+    @State private var recordToEdit: MonthlyRecord? = nil
+    @State private var recordToDelete: MonthlyRecord? = nil
+    @State private var isShowingDeleteConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -40,7 +44,17 @@ struct BatchesHistoryView: View {
                             LazyVStack(spacing: 12) {
                                 ForEach(Array(monthlyRecords.enumerated()), id: \.element.id) { index, record in
                                     let previousRecord = index + 1 < monthlyRecords.count ? monthlyRecords[index + 1] : nil
-                                    MonthlyRecordCard(record: record, previousRecord: previousRecord)
+                                    MonthlyRecordCard(
+                                        record: record,
+                                        previousRecord: previousRecord,
+                                        onEdit: {
+                                            recordToEdit = record
+                                        },
+                                        onDelete: {
+                                            recordToDelete = record
+                                            isShowingDeleteConfirmation = true
+                                        }
+                                    )
                                 }
                             }
                             .padding(.horizontal)
@@ -49,6 +63,7 @@ struct BatchesHistoryView: View {
                 }
                 .padding(.vertical)
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Cortes Mensuales")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -73,7 +88,32 @@ struct BatchesHistoryView: View {
             .sheet(isPresented: $isBatchLogSheetPresented) {
                 BatchLogSheet()
             }
+            .sheet(item: $recordToEdit) { record in
+                BatchLogSheet(editingRecord: record)
+            }
+            .alert("¿Eliminar Corte?", isPresented: $isShowingDeleteConfirmation) {
+                Button("Cancelar", role: .cancel) {
+                    recordToDelete = nil
+                }
+                Button("Eliminar", role: .destructive) {
+                    if let rec = recordToDelete {
+                        deleteRecord(rec)
+                    }
+                }
+            } message: {
+                if let rec = recordToDelete {
+                    Text("Se eliminará el corte de \(rec.periodDate.formatted(.dateTime.month(.wide).year())). Esta acción no se puede deshacer.")
+                } else {
+                    Text("Esta acción eliminará el registro del corte y sus saldos asociados.")
+                }
+            }
         }
+    }
+
+    private func deleteRecord(_ record: MonthlyRecord) {
+        modelContext.delete(record)
+        try? modelContext.save()
+        recordToDelete = nil
     }
 }
 
@@ -81,62 +121,116 @@ struct BatchesHistoryView: View {
 struct MonthlyRecordCard: View {
     let record: MonthlyRecord
     let previousRecord: MonthlyRecord?
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isExpanded: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(record.periodDate.formatted(.dateTime.month(.wide).year()).capitalized)
-                        .font(.kashBodyBold)
-
-                    if let notes = record.notes, !notes.isEmpty {
-                        Text(notes)
-                            .font(.kashCaption)
-                            .foregroundStyle(.secondary)
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            // Fila superior (siempre visible y clickeable para colapsar/descolapsar)
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
                 }
+            } label: {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(record.periodDate.formatted(.dateTime.month(.wide).year()).capitalized)
+                                .font(.kashBodyBold)
+                                .foregroundStyle(.primary)
 
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    PrivacyAwareText(amount: record.totalDebt, font: .kashAmountMedium)
-
-                    // Delta respecto al mes anterior ($ y %)
-                    if let previous = previousRecord {
-                        let delta = record.totalDebt - previous.totalDebt
-                        let isReduction = delta <= 0
-
-                        HStack(spacing: 4) {
-                            Image(systemName: isReduction ? "arrow.down.right" : "arrow.up.right")
-                                .font(.system(size: 11, weight: .bold))
-
-                            Text(delta >= 0 ? "+\(delta.formatted(.currency(code: "MXN")))" : delta.formatted(.currency(code: "MXN")))
-                                .font(.kashMicro)
+                            Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color(hex: "#2563EB"))
                         }
-                        .foregroundStyle(isReduction ? Color(hex: "#10B981") : Color(hex: "#EF4444"))
+
+                        if let notes = record.notes, !notes.isEmpty {
+                            Text(notes)
+                                .font(.kashCaption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        PrivacyAwareText(amount: record.totalDebt, font: .kashAmountMedium)
+
+                        // Delta respecto al mes anterior ($ y %)
+                        if let previous = previousRecord {
+                            let delta = record.totalDebt - previous.totalDebt
+                            let isReduction = delta <= 0
+
+                            HStack(spacing: 4) {
+                                Image(systemName: isReduction ? "arrow.down.right" : "arrow.up.right")
+                                    .font(.system(size: 11, weight: .bold))
+
+                                Text(delta >= 0 ? "+\(delta.formatted(.currency(code: "MXN")))" : delta.formatted(.currency(code: "MXN")))
+                                    .font(.kashMicro)
+                            }
+                            .foregroundStyle(isReduction ? Color(hex: "#10B981") : Color(hex: "#EF4444"))
+                        }
                     }
                 }
             }
+            .buttonStyle(.plain)
 
-            // Desglose de tarjetas en este corte
-            if let balances = record.balances, !balances.isEmpty {
-                Divider()
-                VStack(spacing: 8) {
-                    ForEach(balances) { b in
-                        HStack {
-                            Circle()
-                                .fill(Color(hex: b.card?.colorHex ?? "#64748B"))
-                                .frame(width: 8, height: 8)
+            // Contenido expandible (colapsado por defecto)
+            if isExpanded {
+                VStack(spacing: 10) {
+                    Divider()
 
-                            Text(b.card?.name ?? "Tarjeta")
-                                .font(.kashCaption)
+                    if let balances = record.balances, !balances.isEmpty {
+                        VStack(spacing: 8) {
+                            ForEach(balances) { b in
+                                HStack {
+                                    Circle()
+                                        .fill(Color(hex: b.card?.colorHex ?? "#64748B"))
+                                        .frame(width: 8, height: 8)
 
-                            Spacer()
+                                    Text(b.card?.name ?? "Tarjeta")
+                                        .font(.kashCaption)
 
-                            PrivacyAwareText(amount: b.balanceUsed, font: .kashCaptionBold)
+                                    Spacer()
+
+                                    PrivacyAwareText(amount: b.balanceUsed, font: .kashCaptionBold)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Sin desglose de tarjetas para este periodo")
+                            .font(.kashCaption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
+                    // Acciones de edición y eliminación
+                    HStack(spacing: 12) {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("Editar Corte", systemImage: "pencil")
+                                .font(.kashCaptionBold)
+                                .foregroundStyle(Color(hex: "#2563EB"))
+                        }
+
+                        Spacer()
+
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("Eliminar", systemImage: "trash")
+                                .font(.kashCaptionBold)
+                                .foregroundStyle(Color(hex: "#EF4444"))
                         }
                     }
+                    .padding(.top, 4)
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(16)

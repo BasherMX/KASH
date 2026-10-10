@@ -124,9 +124,16 @@ struct CardPaymentSheet: View {
                     Label("Monto del Abono", systemImage: "dollarsign.circle.fill")
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Pagar Tarjeta")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") {
+                        UIApplication.endEditing()
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") {
                         dismiss()
