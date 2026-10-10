@@ -29,7 +29,6 @@ struct CategoryExpensesDonutChart: View {
                             innerRadius: .ratio(0.60),
                             angularInset: 1.5
                         )
-                        .cornerRadius(4)
                         .foregroundStyle(Color(hex: item.colorHex))
                     }
                     .frame(width: 140, height: 140)
@@ -70,9 +69,9 @@ struct CategoryExpensesDonutChart: View {
             let val = NSDecimalNumber(decimal: exp.amount).doubleValue
 
             if let cur = dict[catName] {
-                dict[catName] = (cur.amount + val, colorHex)
+                dict[catName] = (amount: cur.amount + val, color: colorHex)
             } else {
-                dict[catName] = (val, colorHex)
+                dict[catName] = (amount: val, color: colorHex)
             }
         }
 
