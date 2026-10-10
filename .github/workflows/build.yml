@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode Version
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -28,8 +28,7 @@ jobs:
           name: KASH
           options:
             bundleIdPrefix: com.kash.app
-            xcodeVersion: "15.4"
-            minimumXcodeVersion: "15.0"
+            objectVersion: 56
             deploymentTarget:
               iOS: 17.0
           targets:
