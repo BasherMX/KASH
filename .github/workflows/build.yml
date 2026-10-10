@@ -45,9 +45,11 @@ jobs:
 
       - name: Create Zip Artifact
         run: |
-          mkdir -p output
-          cd build/Build/Products/Debug-iphonesimulator
-          zip -r ../../../output/KASH-iOS-Simulator.app.zip KASH.app
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          APP_PATH=$(find build -name "KASH.app" -type d | head -n 1)
+          echo "Found built app at: $APP_PATH"
+          cd "$(dirname "$APP_PATH")"
+          zip -r "$GITHUB_WORKSPACE/output/KASH-iOS-Simulator.app.zip" "KASH.app"
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
