@@ -64,10 +64,9 @@ struct ZeroDebtEstimatorView: View {
                             Text("Fecha Estimada de Liquidación")
                                 .font(.kashMicro)
                                 .foregroundStyle(.secondary)
-                            Text(zeroDate.formatted(.dateTime.month(.wide).year()))
+                            Text(zeroDate.formatted(.dateTime.month(.wide).year()).capitalized)
                                 .font(.kashAmountMedium)
                                 .foregroundStyle(Color(hex: "#10B981"))
-                                .textCase(.capitalize)
                         }
 
                         Spacer()

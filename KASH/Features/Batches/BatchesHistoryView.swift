@@ -86,9 +86,8 @@ struct MonthlyRecordCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(record.periodDate.formatted(.dateTime.month(.wide).year()))
+                    Text(record.periodDate.formatted(.dateTime.month(.wide).year()).capitalized)
                         .font(.kashBodyBold)
-                        .textCase(.capitalize)
 
                     if let notes = record.notes, !notes.isEmpty {
                         Text(notes)
