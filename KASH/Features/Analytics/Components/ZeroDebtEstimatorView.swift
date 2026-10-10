@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - ZeroDebtEstimatorView
 /// Modelo predictivo de amortización que calcula la fecha estimada de Deuda Cero ($0.00)

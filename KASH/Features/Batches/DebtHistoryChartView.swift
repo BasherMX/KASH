@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Charts
 import SwiftData
 
@@ -33,7 +34,7 @@ struct DebtHistoryChartView: View {
                 Chart {
                     ForEach(chartData) { item in
                         LineMark(
-                            x: .value("Fecha", item.date, unit: .month),
+                            x: .value("Fecha", item.date),
                             y: .value("Deuda", item.amount)
                         )
                         .interpolationMethod(.catmullRom)
@@ -41,7 +42,7 @@ struct DebtHistoryChartView: View {
                         .lineStyle(StrokeStyle(lineWidth: 3))
 
                         AreaMark(
-                            x: .value("Fecha", item.date, unit: .month),
+                            x: .value("Fecha", item.date),
                             y: .value("Deuda", item.amount)
                         )
                         .interpolationMethod(.catmullRom)
@@ -57,7 +58,7 @@ struct DebtHistoryChartView: View {
                         )
 
                         PointMark(
-                            x: .value("Fecha", item.date, unit: .month),
+                            x: .value("Fecha", item.date),
                             y: .value("Deuda", item.amount)
                         )
                         .foregroundStyle(Color(hex: "#1E40AF"))

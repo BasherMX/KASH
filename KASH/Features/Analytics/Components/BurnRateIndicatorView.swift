@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - BurnRateIndicatorView
 /// Comparativa de Velocidad de Endeudamiento:

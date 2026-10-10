@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - DebtConcentrationView
 /// Detector de concentración de deuda en tarjetas con tasas abusivas (>80% anual)
