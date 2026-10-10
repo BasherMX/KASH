@@ -95,17 +95,3 @@ extension Color {
         return String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255))
     }
 }
-
-// MARK: - Keyboard Dismiss Utilities
-extension View {
-    /// Permite descartar el teclado interactivamente y al hacer scroll o tap en espacios libres
-    func dismissKeyboardOnTap() -> some View {
-        self.scrollDismissesKeyboard(.interactively)
-    }
-}
-
-extension UIApplication {
-    static func endEditing() {
-        shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-}
