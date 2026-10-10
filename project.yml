@@ -15,3 +15,6 @@ targets:
           - Info.plist
     info:
       path: KASH/Info.plist
+    settings:
+      GENERATE_INFOPLIST_FILE: false
+      PRODUCT_BUNDLE_IDENTIFIER: com.kash.app
