@@ -179,12 +179,9 @@ struct CardPaymentSheet: View {
         sourceAcc.availableBalance -= amount
         sourceAcc.updatedAt = Date()
 
-        // 2. Descontar saldo deudor en el balance más reciente de la tarjeta
-        if let balances = destCard.balances, !balances.isEmpty {
-            let sorted = balances.sorted { $0.recordedAt > $1.recordedAt }
-            if let latest = sorted.first {
-                latest.balanceUsed = max(0 as Decimal, latest.balanceUsed - amount)
-            }
+        // 2. Descontar saldo deudor en el balance cronológico más reciente de la tarjeta
+        if let latest = destCard.sortedBalances.first {
+            latest.balanceUsed = max(0 as Decimal, latest.balanceUsed - amount)
         }
 
         // 3. Actualizar estado en UpcomingPayment si hay compromiso pendiente

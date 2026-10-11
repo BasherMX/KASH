@@ -7,6 +7,7 @@ import UIKit
 struct BurnRateIndicatorView: View {
     let monthlyExpenses: Decimal
     let monthlyPayments: Decimal
+    var periodTitle: String = "Este Mes"
 
     private var isAmortizing: Bool {
         monthlyPayments >= monthlyExpenses
@@ -18,7 +19,7 @@ struct BurnRateIndicatorView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Velocidad de Endeudamiento")
                         .font(.kashBodyBold)
-                    Text("Burn Rate vs. Payoff Rate")
+                    Text("Burn Rate vs. Payoff Rate • \(periodTitle)")
                         .font(.kashMicro)
                         .foregroundStyle(.secondary)
                 }
@@ -43,7 +44,7 @@ struct BurnRateIndicatorView: View {
             VStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Gastos del mes (Nuevas deudas)")
+                        Text("Gastos del periodo (Nuevas deudas)")
                             .font(.kashCaption)
                             .foregroundStyle(.secondary)
                         Spacer()

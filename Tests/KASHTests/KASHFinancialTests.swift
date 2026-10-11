@@ -210,6 +210,59 @@ struct KASHFinancialTests {
         #expect(package.creditCards.first?.creditLimit == 40000.0)
     }
 
+    @Test("Verifica filtro de periodo por defecto en mes actual y modo histórico")
+    func testPeriodFilterSelectionCurrentMonthAndHistorical() {
+        var filter = PeriodFilterSelection()
+        #expect(filter.mode == .month)
+        #expect(filter.isCurrentMonth == true)
+
+        let now = Date()
+        let cal = Calendar.current
+        let threeMonthsAgo = cal.date(byAdding: .month, value: -3, to: now)!
+
+        // En modo .month por defecto, coincide con hoy pero no con hace 3 meses
+        #expect(filter.matches(date: now) == true)
+        #expect(filter.matches(date: threeMonthsAgo) == false)
+
+        // Al cambiar a modo .historical, coincide con cualquier fecha
+        filter.mode = .historical
+        #expect(filter.matches(date: now) == true)
+        #expect(filter.matches(date: threeMonthsAgo) == true)
+
+        // Al seleccionar mes y año específicos
+        filter.setYearAndMonth(year: 2025, month: 6)
+        #expect(filter.mode == .month)
+        #expect(filter.selectedYear == 2025)
+        #expect(filter.selectedMonth == 6)
+
+        filter.resetToCurrentMonth()
+        #expect(filter.isCurrentMonth == true)
+    }
+
+    @Test("Verifica persistencia de KASHSharedStore para Widgets y acciones pendientes")
+    func testWidgetSharedStoreAndPendingActions() {
+        let customSnapshot = KASHWidgetSnapshot(
+            totalDebt: 24500.50,
+            realLiquidity: 15200.00,
+            utilizationRatio: 0.22,
+            healthStatus: "Óptimo",
+            nextUpcomingCard: "NU",
+            nextUpcomingDays: 5,
+            activeCardsCount: 2
+        )
+        KASHSharedStore.saveSnapshot(customSnapshot)
+        let loaded = KASHSharedStore.loadSnapshot()
+        #expect(loaded.totalDebt == 24500.50)
+        #expect(loaded.realLiquidity == 15200.00)
+        #expect(loaded.nextUpcomingCard == "NU")
+        #expect(loaded.activeCardsCount == 2)
+
+        KASHSharedStore.setPendingAction(.income)
+        let consumed = KASHSharedStore.consumePendingAction()
+        #expect(consumed == .income)
+        #expect(KASHSharedStore.consumePendingAction() == nil)
+    }
+
     @Test("Verifica borrado total de datos y restablecimiento de fábrica")
     @MainActor
     func testDataResetManagerWipeAllData() throws {

@@ -8,6 +8,7 @@ struct QuickTransactionSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var editingTransaction: Transaction? = nil
+    var initialType: TransactionType = .expense
 
     @Query private var creditCards: [CreditCard]
     @Query private var liquidityAccounts: [LiquidityAccount]
@@ -159,6 +160,7 @@ struct QuickTransactionSheet: View {
             selectedCategoryId = tx.category?.id
             notes = tx.notes ?? ""
         } else {
+            transactionType = initialType
             if selectedCardId == nil {
                 selectedCardId = creditCards.first?.id
             }

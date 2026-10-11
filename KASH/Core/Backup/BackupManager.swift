@@ -135,9 +135,9 @@ final class BackupManager {
         )
 
         let manifest = BackupManifest(
-            schemaVersion: "2.2.0",
-            appVersion: "1.2.1",
-            buildNumber: 4,
+            schemaVersion: "2.3.0",
+            appVersion: "1.3.0",
+            buildNumber: 5,
             exportedAt: isoFormatter.string(from: Date()),
             deviceModel: "iPhone",
             entityCounts: counts,
@@ -372,7 +372,9 @@ final class BackupManager {
             settings.paymentReminderDaysBefore = sDTO.paymentReminderDaysBefore
             settings.biometricLockMandatory = sDTO.biometricLockMandatory
             settings.isPrivacyModeEnabled = sDTO.isPrivacyModeEnabled
-            settings.terminalCommissionRate = sDTO.terminalCommissionRate
+            if let rate = sDTO.terminalCommissionRate {
+                settings.terminalCommissionRate = rate
+            }
             settings.lastBackupDate = Date()
         }
 

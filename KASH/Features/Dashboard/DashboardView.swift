@@ -42,7 +42,7 @@ struct DashboardView: View {
                     // 4. Próximos Pagos del Mes (Compromisos Críticos)
                     UpcomingPaymentsCard(payments: upcomingPayments)
 
-                    // 5. Desglose de Tarjetas de Crédito Activas
+                    // 5. Desglose de Tarjetas de Crédito Activas (con diseño físico de TDC, chip y relieve)
                     CreditCardsSnapshotCard(cards: creditCards)
                 }
                 .padding(.horizontal, 16)
@@ -58,6 +58,7 @@ struct DashboardView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        appState.quickTransactionInitialType = .expense
                         appState.isQuickTransactionPresented = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
@@ -72,22 +73,30 @@ struct DashboardView: View {
             .onChange(of: totalDebtCurrent) { _, _ in
                 syncWidgetData()
             }
+            .onChange(of: realLiquidityTotal) { _, _ in
+                syncWidgetData()
+            }
         }
     }
 
     // MARK: - Sincronización con KASHWidgets
     private func syncWidgetData() {
-        let nextCard = upcomingPayments.first(where: { $0.status == .pending })?.concept
-        let nextDays = upcomingPayments.first(where: { $0.status == .pending }).map {
+        let sortedPending = upcomingPayments
+            .filter { $0.status == .pending }
+            .sorted { $0.dueDate < $1.dueDate }
+        let nextCard = sortedPending.first?.card?.name ?? sortedPending.first?.concept
+        let nextDays = sortedPending.first.map {
             max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0.dueDate).day ?? 0)
         }
 
         let snapshot = KASHWidgetSnapshot(
             totalDebt: totalDebtCurrent,
+            realLiquidity: realLiquidityTotal,
             utilizationRatio: overallUtilizationRatio,
             healthStatus: overallUtilizationRatio < 0.30 ? "Óptimo" : (overallUtilizationRatio <= 0.50 ? "Alerta" : "Crítico"),
             nextUpcomingCard: nextCard,
             nextUpcomingDays: nextDays,
+            activeCardsCount: creditCards.filter { $0.isActive }.count,
             lastUpdated: Date()
         )
         KASHSharedStore.saveSnapshot(snapshot)
@@ -240,6 +249,7 @@ struct QuickActionButtonsRow: View {
                 icon: "arrow.up.right",
                 color: Color(hex: "#EF4444")
             ) {
+                appState.quickTransactionInitialType = .expense
                 appState.isQuickTransactionPresented = true
             }
 
@@ -248,6 +258,7 @@ struct QuickActionButtonsRow: View {
                 icon: "arrow.down.left",
                 color: Color(hex: "#10B981")
             ) {
+                appState.quickTransactionInitialType = .income
                 appState.isQuickTransactionPresented = true
             }
 
@@ -451,6 +462,11 @@ struct CreditCardsSnapshotCard: View {
                 Text("Tus Tarjetas de Crédito")
                     .font(.kashBodyBold)
                 Spacer()
+                if !cards.isEmpty {
+                    Text("\(cards.filter { $0.isActive }.count) activas")
+                        .font(.kashMicro)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if cards.isEmpty {
@@ -461,7 +477,7 @@ struct CreditCardsSnapshotCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
+                    HStack(spacing: 16) {
                         ForEach(cards.filter { $0.isActive }) { card in
                             NavigationLink {
                                 CreditCardDetailView(card: card)
@@ -471,7 +487,8 @@ struct CreditCardsSnapshotCard: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 2)
                 }
             }
         }
@@ -480,37 +497,191 @@ struct CreditCardsSnapshotCard: View {
     }
 }
 
+// MARK: - EMVCardChipView (Chip Metálico Realista de Tarjeta de Crédito)
+struct EMVCardChipView: View {
+    var width: CGFloat = 34
+    var height: CGFloat = 25
+
+    var body: some View {
+        ZStack {
+            // Base metálica dorada/champagne
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "#FDE68A"),
+                            Color(hex: "#D97706"),
+                            Color(hex: "#F59E0B"),
+                            Color(hex: "#FEF3C7")
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            // Líneas de contactos del chip EMV
+            VStack(spacing: height * 0.18) {
+                Rectangle()
+                    .fill(Color.black.opacity(0.28))
+                    .frame(height: 1)
+                Rectangle()
+                    .fill(Color.black.opacity(0.28))
+                    .frame(height: 1)
+            }
+
+            HStack(spacing: width * 0.24) {
+                Rectangle()
+                    .fill(Color.black.opacity(0.28))
+                    .frame(width: 1)
+                Rectangle()
+                    .fill(Color.black.opacity(0.28))
+                    .frame(width: 1)
+            }
+
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.25), lineWidth: 0.8)
+                .frame(width: width * 0.38, height: height * 0.48)
+
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.45), lineWidth: 0.8)
+        }
+        .frame(width: width, height: height)
+    }
+}
+
+// MARK: - CreditCardMiniCard (Forma y Proporción Real de Tarjeta de Crédito ISO ID-1)
 struct CreditCardMiniCard: View {
     let card: CreditCard
 
+    private var lastFourDigitsSim: String {
+        String(format: "%02d%02d", max(1, min(31, card.cutoffDay)), max(1, min(31, card.paymentDueDay)))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: card.iconName.isEmpty ? "creditcard.fill" : card.iconName)
-                    .foregroundStyle(.white)
-                Spacer()
-                Text("\(Int(card.utilizationPercentage * 100))%")
-                    .font(.kashMicro)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-
-            Spacer()
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(card.name)
-                    .font(.kashCaptionBold)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                PrivacyAwareText(
-                    amount: card.currentBalance,
-                    font: .kashAmountSmall,
-                    foregroundColor: .white
+        ZStack {
+            // 1. Fondo con gradiente profundo y reflejos de tarjeta física
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: card.colorHex),
+                            Color(hex: card.colorHex).opacity(0.82),
+                            Color.black.opacity(0.55)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
+
+            // Textura geométrica sutil tipo tarjeta bancaria
+            GeometryReader { geo in
+                Circle()
+                    .fill(Color.white.opacity(0.07))
+                    .frame(width: 150, height: 150)
+                    .offset(x: geo.size.width - 65, y: -45)
+
+                Circle()
+                    .fill(Color.white.opacity(0.05))
+                    .frame(width: 120, height: 120)
+                    .offset(x: geo.size.width - 35, y: geo.size.height - 60)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            // 2. Contenido de la Tarjeta de Crédito
+            VStack(alignment: .leading, spacing: 0) {
+                // Fila Superior: Banco + Nombre + Uso %
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(card.institution.isEmpty ? "CRÉDITO" : card.institution.uppercased())
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .tracking(1.1)
+
+                        Text(card.name)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Text("\(Int(card.utilizationPercentage * 100))% uso")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.white.opacity(0.18), in: Capsule())
+                }
+
+                Spacer(minLength: 6)
+
+                // Fila Central: Chip EMV Metálico + Contactless NFC + Numeración en Relieve
+                HStack(spacing: 10) {
+                    EMVCardChipView(width: 34, height: 24)
+
+                    Image(systemName: "wave.3.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+
+                    Spacer()
+
+                    Text("•••• \(lastFourDigitsSim)")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .tracking(1.0)
+                }
+
+                Spacer(minLength: 8)
+
+                // Fila Inferior: Saldo Deudor + Fechas Corte/Pago + Emblema de Red
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("SALDO DEUDOR")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .tracking(0.5)
+
+                        PrivacyAwareText(
+                            amount: card.currentBalance,
+                            font: .kashAmountSmall,
+                            foregroundColor: .white
+                        )
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Corte \(card.cutoffDay) • Pago \(card.paymentDueDay)")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+
+                        // Emblema estilo red de pagos (dos círculos entrelazados)
+                        HStack(spacing: -6) {
+                            Circle()
+                                .fill(Color.white.opacity(0.45))
+                                .frame(width: 16, height: 16)
+                            Circle()
+                                .fill(Color.white.opacity(0.75))
+                                .frame(width: 16, height: 16)
+                        }
+                    }
+                }
+            }
+            .padding(14)
+
+            // Borde especular metálico de 1pt
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.38), .white.opacity(0.08)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         }
-        .padding(12)
-        .frame(width: 140, height: 110)
-        .background(Color(hex: card.colorHex), in: RoundedRectangle(cornerRadius: 14))
+        // Proporción estándar ISO/IEC 7810 ID-1 (~1.586 : 1)
+        .frame(width: 238, height: 150)
+        .shadow(color: Color(hex: card.colorHex).opacity(0.32), radius: 8, y: 4)
     }
 }

@@ -6,18 +6,28 @@ import SwiftData
 /// Donut Chart con `SectorMark` para visualizar el desglose de gastos por categoría
 struct CategoryExpensesDonutChart: View {
     let transactions: [Transaction]
+    var periodTitle: String = "Este Mes"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Gastos por Categoría")
-                .font(.kashBodyBold)
+            HStack {
+                Text("Gastos por Categoría")
+                    .font(.kashBodyBold)
+                Spacer()
+                Text(periodTitle)
+                    .font(.kashMicro)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
+            }
 
             if categoryBreakdown.isEmpty {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color.secondary.opacity(0.08))
                     .frame(height: 180)
                     .overlay {
-                        Text("Sin gastos registrados este mes")
+                        Text("Sin gastos registrados en \(periodTitle)")
                             .font(.kashCaption)
                             .foregroundStyle(.secondary)
                     }
@@ -33,9 +43,9 @@ struct CategoryExpensesDonutChart: View {
                     }
                     .frame(width: 140, height: 140)
 
-                    // Ranking Top 4
+                    // Ranking Top 5
                     VStack(alignment: .leading, spacing: 8) {
-                        ForEach(categoryBreakdown.prefix(4)) { item in
+                        ForEach(categoryBreakdown.prefix(5)) { item in
                             HStack(spacing: 8) {
                                 Circle()
                                     .fill(Color(hex: item.colorHex))
@@ -47,8 +57,10 @@ struct CategoryExpensesDonutChart: View {
 
                                 Spacer()
 
-                                Text("$\(Int(item.amount))")
-                                    .font(.kashCaptionBold)
+                                PrivacyAwareText(
+                                    amount: Decimal(item.amount),
+                                    font: .kashCaptionBold
+                                )
                             }
                         }
                     }

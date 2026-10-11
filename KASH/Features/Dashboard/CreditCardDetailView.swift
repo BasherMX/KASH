@@ -4,10 +4,11 @@ import Charts
 
 // MARK: - CreditCardDetailView
 /// Vista de detalle e historial financiero individual por tarjeta de crédito.
-/// Incluye gráfica de avance de deuda a lo largo de los cortes, histórico de saldos y transacciones.
+/// Incluye gráfica de avance de deuda a lo largo de los cortes, histórico de saldos y movimientos agrupados por año.
 struct CreditCardDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var card: CreditCard
+    @Query(sort: \Transaction.transactionDate, order: .reverse) private var allTransactions: [Transaction]
 
     @State private var isEditSheetPresented = false
     @State private var isBatchLogSheetPresented = false
@@ -17,13 +18,15 @@ struct CreditCardDetailView: View {
     }
 
     private var cardTransactions: [Transaction] {
-        (card.transactions ?? []).sorted { $0.transactionDate > $1.transactionDate }
+        allTransactions.filter { tx in
+            tx.creditCard?.id == card.id || tx.destinationCard?.id == card.id
+        }
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                // 1. Tarjeta Visual Estilizada
+                // 1. Tarjeta Visual Estilizada con Chip EMV
                 CardVisualHero(card: card)
 
                 // 2. Métricas Clave y Buró
@@ -32,10 +35,10 @@ struct CreditCardDetailView: View {
                 // 3. Gráfica Histórica de Deuda de la Tarjeta
                 CardDebtHistoryChart(balances: historicalBalancesChronological, colorHex: card.colorHex)
 
-                // 4. Histórico de Cortes de Esta Tarjeta
+                // 4. Histórico de Cortes de Esta Tarjeta (Agrupado por año y colapsable, año actual descolapsado por defecto)
                 CardHistoricalCutsSection(card: card)
 
-                // 5. Movimientos Recientes con Esta Tarjeta
+                // 5. Movimientos con Esta Tarjeta (Agrupado por año y colapsable, año actual descolapsado por defecto)
                 CardRecentTransactionsSection(transactions: cardTransactions)
             }
             .padding(.horizontal, 16)
@@ -72,64 +75,98 @@ struct CreditCardDetailView: View {
 private struct CardVisualHero: View {
     let card: CreditCard
 
+    private var lastFourDigitsSim: String {
+        String(format: "%02d%02d", max(1, min(31, card.cutoffDay)), max(1, min(31, card.paymentDueDay)))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(card.institution.uppercased())
-                        .font(.kashMicro)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .tracking(1.0)
-                    Text(card.name)
-                        .font(.kashTitleMedium)
-                        .foregroundStyle(.white)
-                }
-
-                Spacer()
-
-                Image(systemName: card.iconName.isEmpty ? "creditcard.fill" : card.iconName)
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white.opacity(0.9))
-            }
-
-            Spacer().frame(height: 8)
-
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Saldo Deudor Actual")
-                        .font(.kashMicro)
-                        .foregroundStyle(.white.opacity(0.75))
-                    PrivacyAwareText(
-                        amount: card.currentBalance,
-                        font: .kashAmountLarge,
-                        foregroundColor: .white
+        ZStack {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: card.colorHex),
+                            Color(hex: card.colorHex).opacity(0.85),
+                            Color.black.opacity(0.55)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
+                )
+
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(card.institution.isEmpty ? "CRÉDITO" : card.institution.uppercased())
+                            .font(.kashMicro)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .tracking(1.2)
+                        Text(card.name)
+                            .font(.kashTitleMedium)
+                            .foregroundStyle(.white)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: card.iconName.isEmpty ? "creditcard.fill" : card.iconName)
+                        .font(.system(size: 26))
+                        .foregroundStyle(.white.opacity(0.9))
                 }
 
-                Spacer()
+                // Chip EMV + Contactless + Numeración
+                HStack(spacing: 12) {
+                    EMVCardChipView(width: 42, height: 30)
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Límite Total")
-                        .font(.kashMicro)
-                        .foregroundStyle(.white.opacity(0.75))
-                    PrivacyAwareText(
-                        amount: card.creditLimit,
-                        font: .kashCaptionBold,
-                        foregroundColor: .white.opacity(0.9)
-                    )
+                    Image(systemName: "wave.3.right")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+
+                    Spacer()
+
+                    Text("••••  ••••  ••••  \(lastFourDigitsSim)")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Saldo Deudor Actual")
+                            .font(.kashMicro)
+                            .foregroundStyle(.white.opacity(0.75))
+                        PrivacyAwareText(
+                            amount: card.currentBalance,
+                            font: .kashAmountLarge,
+                            foregroundColor: .white
+                        )
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Límite Total")
+                            .font(.kashMicro)
+                            .foregroundStyle(.white.opacity(0.75))
+                        PrivacyAwareText(
+                            amount: card.creditLimit,
+                            font: .kashCaptionBold,
+                            foregroundColor: .white.opacity(0.9)
+                        )
+                    }
                 }
             }
+            .padding(20)
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.35), .white.opacity(0.08)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         }
-        .padding(20)
         .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(
-                colors: [Color(hex: card.colorHex), Color(hex: card.colorHex).opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
         .shadow(color: Color(hex: card.colorHex).opacity(0.3), radius: 10, y: 5)
     }
 }
@@ -174,8 +211,8 @@ private struct CardMetricsGrid: View {
 
                 MetricTile(
                     title: "Línea Libre",
-                    value: "$\(card.availableCredit)",
-                    subtitle: "Disponible para uso",
+                    value: card.availableCredit.formatted(.currency(code: "MXN")),
+                    subtitle: "Capacidad restante",
                     tintColor: Color(hex: "#2563EB")
                 )
             }
@@ -321,9 +358,33 @@ private struct CardDebtHistoryChart: View {
     }
 }
 
-// MARK: - CardHistoricalCutsSection
+// MARK: - CardHistoricalCutsSection (Agrupado por año y colapsable, año actual descolapsado por defecto)
 private struct CardHistoricalCutsSection: View {
     let card: CreditCard
+
+    @State private var expandedYears: Set<Int> = [Calendar.current.component(.year, from: Date())]
+
+    private var balancesGroupedByYear: [(year: Int, balances: [CardMonthlyBalance])] {
+        let allSorted = card.sortedBalances
+        let grouped = Dictionary(grouping: allSorted) { b in
+            let date = b.monthlyRecord?.periodDate ?? b.recordedAt
+            return Calendar.current.component(.year, from: date)
+        }
+        return grouped.keys.sorted(by: >).map { year in
+            let items = (grouped[year] ?? []).sorted {
+                let d0 = $0.monthlyRecord?.periodDate ?? $0.recordedAt
+                let d1 = $1.monthlyRecord?.periodDate ?? $1.recordedAt
+                return d0 > d1
+            }
+            return (year: year, balances: items)
+        }
+    }
+
+    private func chronologicalPreviousBalance(for balance: CardMonthlyBalance) -> CardMonthlyBalance? {
+        let all = card.sortedBalances
+        guard let idx = all.firstIndex(where: { $0.id == balance.id }) else { return nil }
+        return idx + 1 < all.count ? all[idx + 1] : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -341,42 +402,97 @@ private struct CardHistoricalCutsSection: View {
                     .font(.kashCaption)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(Array(card.sortedBalances.enumerated()), id: \.element.id) { idx, balance in
-                        let previousBalance = idx + 1 < card.sortedBalances.count ? card.sortedBalances[idx + 1] : nil
-                        let date = balance.monthlyRecord?.periodDate ?? balance.recordedAt
-
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(date.formatted(.dateTime.month(.wide).year()).capitalized)
-                                    .font(.kashCaptionBold)
-                                Text("Corte del mes")
-                                    .font(.kashMicro)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            VStack(alignment: .trailing, spacing: 2) {
-                                PrivacyAwareText(amount: balance.balanceUsed, font: .kashCaptionBold)
-
-                                if let prev = previousBalance {
-                                    let delta = balance.balanceUsed - prev.balanceUsed
-                                    let isDown = delta <= 0
-                                    HStack(spacing: 2) {
-                                        Image(systemName: isDown ? "arrow.down" : "arrow.up")
-                                            .font(.system(size: 10, weight: .bold))
-                                        Text(delta >= 0 ? "+\(delta.formatted(.currency(code: "MXN")))" : delta.formatted(.currency(code: "MXN")))
-                                            .font(.kashMicro)
+                VStack(spacing: 10) {
+                    ForEach(balancesGroupedByYear, id: \.year) { group in
+                        let isYearExpanded = expandedYears.contains(group.year)
+                        VStack(spacing: 8) {
+                            // Cabecera colapsable por año
+                            Button {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                    if isYearExpanded {
+                                        expandedYears.remove(group.year)
+                                    } else {
+                                        expandedYears.insert(group.year)
                                     }
-                                    .foregroundStyle(isDown ? Color(hex: "#10B981") : Color(hex: "#EF4444"))
                                 }
-                            }
-                        }
-                        .padding(.vertical, 4)
+                            } label: {
+                                HStack {
+                                    Image(systemName: isYearExpanded ? "folder.fill" : "folder")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color(hex: "#2563EB"))
 
-                        if idx < card.sortedBalances.count - 1 {
-                            Divider()
+                                    Text("Año \(String(group.year))")
+                                        .font(.kashCaptionBold)
+                                        .foregroundStyle(.primary)
+
+                                    if group.year == Calendar.current.component(.year, from: Date()) {
+                                        Text("Actual")
+                                            .font(.kashMicro)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(hex: "#2563EB").opacity(0.15), in: Capsule())
+                                            .foregroundStyle(Color(hex: "#2563EB"))
+                                    }
+
+                                    Spacer()
+
+                                    Text("\(group.balances.count) \(group.balances.count == 1 ? "corte" : "cortes")")
+                                        .font(.kashMicro)
+                                        .foregroundStyle(.secondary)
+
+                                    Image(systemName: isYearExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+
+                            if isYearExpanded {
+                                VStack(spacing: 8) {
+                                    ForEach(Array(group.balances.enumerated()), id: \.element.id) { idx, balance in
+                                        let previousBalance = chronologicalPreviousBalance(for: balance)
+                                        let date = balance.monthlyRecord?.periodDate ?? balance.recordedAt
+
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(date.formatted(.dateTime.month(.wide).year()).capitalized)
+                                                    .font(.kashCaptionBold)
+                                                Text("Corte del mes")
+                                                    .font(.kashMicro)
+                                                    .foregroundStyle(.secondary)
+                                            }
+
+                                            Spacer()
+
+                                            VStack(alignment: .trailing, spacing: 2) {
+                                                PrivacyAwareText(amount: balance.balanceUsed, font: .kashCaptionBold)
+
+                                                if let prev = previousBalance {
+                                                    let delta = balance.balanceUsed - prev.balanceUsed
+                                                    let isDown = delta <= 0
+                                                    HStack(spacing: 2) {
+                                                        Image(systemName: isDown ? "arrow.down" : "arrow.up")
+                                                            .font(.system(size: 10, weight: .bold))
+                                                        Text(delta >= 0 ? "+\(delta.formatted(.currency(code: "MXN")))" : delta.formatted(.currency(code: "MXN")))
+                                                            .font(.kashMicro)
+                                                    }
+                                                    .foregroundStyle(isDown ? Color(hex: "#10B981") : Color(hex: "#EF4444"))
+                                                }
+                                            }
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+
+                                        if idx < group.balances.count - 1 {
+                                            Divider()
+                                        }
+                                    }
+                                }
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
                     }
                 }
@@ -387,17 +503,29 @@ private struct CardHistoricalCutsSection: View {
     }
 }
 
-// MARK: - CardRecentTransactionsSection
+// MARK: - CardRecentTransactionsSection (Agrupado por año y colapsable, año actual descolapsado por defecto)
 private struct CardRecentTransactionsSection: View {
     let transactions: [Transaction]
+
+    @State private var expandedYears: Set<Int> = [Calendar.current.component(.year, from: Date())]
+
+    private var transactionsGroupedByYear: [(year: Int, items: [Transaction])] {
+        let grouped = Dictionary(grouping: transactions) { tx in
+            Calendar.current.component(.year, from: tx.transactionDate)
+        }
+        return grouped.keys.sorted(by: >).map { year in
+            let items = (grouped[year] ?? []).sorted { $0.transactionDate > $1.transactionDate }
+            return (year: year, items: items)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Movimientos Recientes")
+                Text("Movimientos de la Tarjeta")
                     .font(.kashBodyBold)
                 Spacer()
-                Text("\(transactions.count)")
+                Text("\(transactions.count) movimientos")
                     .font(.kashMicro)
                     .foregroundStyle(.secondary)
             }
@@ -407,26 +535,85 @@ private struct CardRecentTransactionsSection: View {
                     .font(.kashCaption)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(transactions.prefix(5)) { tx in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(tx.concept)
-                                    .font(.kashCaptionBold)
-                                Text(tx.transactionDate.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.kashMicro)
-                                    .foregroundStyle(.secondary)
+                VStack(spacing: 10) {
+                    ForEach(transactionsGroupedByYear, id: \.year) { group in
+                        let isYearExpanded = expandedYears.contains(group.year)
+                        VStack(spacing: 8) {
+                            // Cabecera colapsable por año
+                            Button {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                    if isYearExpanded {
+                                        expandedYears.remove(group.year)
+                                    } else {
+                                        expandedYears.insert(group.year)
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: isYearExpanded ? "folder.fill" : "folder")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color(hex: "#2563EB"))
+
+                                    Text("Año \(String(group.year))")
+                                        .font(.kashCaptionBold)
+                                        .foregroundStyle(.primary)
+
+                                    if group.year == Calendar.current.component(.year, from: Date()) {
+                                        Text("Actual")
+                                            .font(.kashMicro)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(hex: "#2563EB").opacity(0.15), in: Capsule())
+                                            .foregroundStyle(Color(hex: "#2563EB"))
+                                    }
+
+                                    Spacer()
+
+                                    Text("\(group.items.count) \(group.items.count == 1 ? "movimiento" : "movimientos")")
+                                        .font(.kashMicro)
+                                        .foregroundStyle(.secondary)
+
+                                    Image(systemName: isYearExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
                             }
+                            .buttonStyle(.plain)
 
-                            Spacer()
+                            if isYearExpanded {
+                                VStack(spacing: 8) {
+                                    ForEach(Array(group.items.enumerated()), id: \.element.id) { idx, tx in
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(tx.concept)
+                                                    .font(.kashCaptionBold)
+                                                Text(tx.transactionDate.formatted(date: .abbreviated, time: .shortened))
+                                                    .font(.kashMicro)
+                                                    .foregroundStyle(.secondary)
+                                            }
 
-                            PrivacyAwareText(
-                                amount: tx.amount,
-                                font: .kashCaptionBold,
-                                foregroundColor: tx.type == .income || tx.type == .cardPayment ? Color(hex: "#10B981") : Color(hex: "#EF4444")
-                            )
+                                            Spacer()
+
+                                            PrivacyAwareText(
+                                                amount: tx.amount,
+                                                font: .kashCaptionBold,
+                                                foregroundColor: tx.type == .income || tx.type == .cardPayment ? Color(hex: "#10B981") : Color(hex: "#EF4444")
+                                            )
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+
+                                        if idx < group.items.count - 1 {
+                                            Divider()
+                                        }
+                                    }
+                                }
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
-                        .padding(.vertical, 2)
                     }
                 }
             }

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import WidgetKit
 
 // MARK: - App Navigation Tabs
 enum AppTab: String, CaseIterable, Identifiable {
@@ -36,6 +37,7 @@ enum AppTab: String, CaseIterable, Identifiable {
 @MainActor
 final class AppState: ObservableObject {
     @Published var selectedTab: AppTab = .dashboard
+    @Published var quickTransactionInitialType: TransactionType = .expense
     @Published var isQuickTransactionPresented: Bool = false
     @Published var isCardPaymentPresented: Bool = false
     @Published var isBatchLogPresented: Bool = false
@@ -99,7 +101,7 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: authManager.isUnlocked)
         .animation(.easeInOut(duration: 0.2), value: appState.isPrivacyBlurred)
         .sheet(isPresented: $appState.isQuickTransactionPresented) {
-            QuickTransactionSheet()
+            QuickTransactionSheet(initialType: appState.quickTransactionInitialType)
         }
         .sheet(isPresented: $appState.isCardPaymentPresented) {
             CardPaymentSheet()
@@ -113,9 +115,54 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(to: newPhase)
         }
+        .onOpenURL { url in
+            handleWidgetDeepLink(url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("KASHWidgetActionTriggered"))) { _ in
+            processPendingWidgetAction()
+        }
         .onAppear {
             checkFirstLaunchOnboarding()
             triggerInitialBiometricAuth()
+            processPendingWidgetAction()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
+    private func handleWidgetDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "kash" else { return }
+        switch url.host?.lowercased() {
+        case "expense":
+            executeWidgetAction(.expense)
+        case "income":
+            executeWidgetAction(.income)
+        case "pay":
+            executeWidgetAction(.pay)
+        default:
+            executeWidgetAction(.dashboard)
+        }
+    }
+
+    private func processPendingWidgetAction() {
+        guard let action = KASHSharedStore.consumePendingAction() else { return }
+        executeWidgetAction(action)
+    }
+
+    private func executeWidgetAction(_ action: KASHWidgetAction) {
+        switch action {
+        case .expense:
+            appState.selectedTab = .dashboard
+            appState.quickTransactionInitialType = .expense
+            appState.isQuickTransactionPresented = true
+        case .income:
+            appState.selectedTab = .dashboard
+            appState.quickTransactionInitialType = .income
+            appState.isQuickTransactionPresented = true
+        case .pay:
+            appState.selectedTab = .dashboard
+            appState.isCardPaymentPresented = true
+        case .dashboard:
+            appState.selectedTab = .dashboard
         }
     }
 
@@ -127,6 +174,8 @@ struct RootView: View {
             if isBiometricMandatory && !authManager.isUnlocked {
                 triggerInitialBiometricAuth()
             }
+            processPendingWidgetAction()
+            WidgetCenter.shared.reloadAllTimelines()
         case .inactive:
             // Activar desenfoque inmediato para ocultar datos en el App Switcher
             appState.isPrivacyBlurred = true
@@ -135,6 +184,7 @@ struct RootView: View {
             if isBiometricMandatory {
                 authManager.lockApp()
             }
+            WidgetCenter.shared.reloadAllTimelines()
         @unknown default:
             break
         }

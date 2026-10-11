@@ -1,11 +1,13 @@
 import SwiftUI
 import SwiftData
+import WidgetKit
 
 // MARK: - TransactionsListView
 struct TransactionsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Transaction.transactionDate, order: .reverse) private var transactions: [Transaction]
 
+    @State private var periodFilter = PeriodFilterSelection()
     @State private var selectedFilter: TransactionType? = nil
     @State private var isQuickTxSheetPresented = false
     @State private var isCardPaymentSheetPresented = false
@@ -14,7 +16,12 @@ struct TransactionsListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Filtro rápido de tipo
+                // 1. Selector de Mes / Histórico arriba en la pestaña (por defecto Mes Actual)
+                PeriodFilterHeaderView(selection: $periodFilter)
+
+                Divider()
+
+                // 2. Filtro rápido de tipo de movimiento
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         FilterChip(
@@ -41,11 +48,35 @@ struct TransactionsListView: View {
                 Divider()
 
                 if filteredTransactions.isEmpty {
-                    ContentUnavailableView(
-                        "Sin Movimientos Registrados",
-                        systemImage: "list.bullet.rectangle.portrait",
-                        description: Text("Registra compras con tarjeta, ingresos o abonos para mantener tu historial al día.")
-                    )
+                    VStack(spacing: 16) {
+                        ContentUnavailableView(
+                            periodFilter.mode == .month
+                                ? "Sin Movimientos en \(periodFilter.periodTitle)"
+                                : "Sin Movimientos Registrados",
+                            systemImage: "list.bullet.rectangle.portrait",
+                            description: Text(
+                                periodFilter.mode == .month
+                                    ? "No hay movimientos registrados para este mes. Puedes cambiar de mes arriba o ver el histórico completo."
+                                    : "Registra compras con tarjeta, ingresos o abonos para mantener tu historial al día."
+                            )
+                        )
+
+                        if periodFilter.mode == .month && !transactions.isEmpty {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    periodFilter.mode = .historical
+                                }
+                            } label: {
+                                Label("Ver Histórico Completo (\(transactions.count) movimientos)", systemImage: "clock.arrow.circlepath")
+                                    .font(.kashCaptionBold)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color(hex: "#2563EB").opacity(0.12), in: Capsule())
+                                    .foregroundStyle(Color(hex: "#2563EB"))
+                            }
+                            .padding(.bottom, 24)
+                        }
+                    }
                 } else {
                     List {
                         ForEach(filteredTransactions) { tx in
@@ -107,8 +138,11 @@ struct TransactionsListView: View {
     }
 
     private var filteredTransactions: [Transaction] {
-        guard let filter = selectedFilter else { return transactions }
-        return transactions.filter { $0.type == filter }
+        transactions.filter { tx in
+            let matchesPeriod = periodFilter.matches(date: tx.transactionDate)
+            let matchesType = selectedFilter == nil || tx.type == selectedFilter
+            return matchesPeriod && matchesType
+        }
     }
 
     private func deleteTransactions(at offsets: IndexSet) {
@@ -117,6 +151,7 @@ struct TransactionsListView: View {
             modelContext.delete(tx)
         }
         try? modelContext.save()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 

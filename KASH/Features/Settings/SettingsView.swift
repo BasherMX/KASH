@@ -1,19 +1,26 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import WidgetKit
 
 // MARK: - SettingsView
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
     @Query private var userSettingsList: [UserSettings]
+    @Query private var creditCards: [CreditCard]
+    @Query private var liquidityAccounts: [LiquidityAccount]
+    @Query private var upcomingPayments: [UpcomingPayment]
     @AppStorage("isPrivacyModeEnabled") private var isPrivacyModeEnabled: Bool = false
 
+    @FocusState private var isMonthlyIncomeFocused: Bool
     @State private var monthlyIncomeString: String = ""
     @State private var debtAllocationPercentage: Double = 0.60
     @State private var paymentReminderDays: Int = 3
     @State private var biometricLockMandatory: Bool = false
-    @State private var terminalCommissionRate: Double = 4.06
+
+    // Widgets Gallery & Diagnostic Sheet
+    @State private var isShowingWidgetsSheet: Bool = false
 
     // Backup & Export States
     @State private var exportURL: URL? = nil
@@ -23,8 +30,30 @@ struct SettingsView: View {
     @State private var isShowingAlert: Bool = false
     @State private var isShowingDeleteConfirmationAlert: Bool = false
 
-    private var currentSettings: UserSettings {
-        userSettingsList.first ?? UserSettings()
+    @discardableResult
+    private func ensureSettings() -> UserSettings {
+        if let first = userSettingsList.first {
+            return first
+        }
+        let created = UserSettings()
+        modelContext.insert(created)
+        try? modelContext.save()
+        return created
+    }
+
+    private func saveMonthlyIncome() {
+        let cleaned = monthlyIncomeString
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let income = Decimal(string: cleaned) ?? 0
+        let settings = ensureSettings()
+        if settings.monthlyIncome != income {
+            settings.monthlyIncome = income
+            try? modelContext.save()
+        } else {
+            try? modelContext.save()
+        }
     }
 
     var body: some View {
@@ -34,13 +63,15 @@ struct SettingsView: View {
                 Section {
                     Toggle("Face ID / Touch ID Obligatorio", isOn: $biometricLockMandatory)
                         .onChange(of: biometricLockMandatory) { _, newValue in
-                            currentSettings.biometricLockMandatory = newValue
+                            let s = ensureSettings()
+                            s.biometricLockMandatory = newValue
                             try? modelContext.save()
                         }
 
                     Toggle("Ocultar Saldos por Defecto (Modo 👁️)", isOn: $isPrivacyModeEnabled)
                         .onChange(of: isPrivacyModeEnabled) { _, newValue in
-                            currentSettings.isPrivacyModeEnabled = newValue
+                            let s = ensureSettings()
+                            s.isPrivacyModeEnabled = newValue
                             try? modelContext.save()
                         }
                 } header: {
@@ -72,7 +103,36 @@ struct SettingsView: View {
                     Label("Catálogos y Cuentas", systemImage: "tray.full.fill")
                 }
 
-                // SECCIÓN 3: NOTIFICACIONES Y RECORDATORIOS
+                // SECCIÓN 3: WIDGETS DE PANTALLA DE INICIO Y BLOQUEO
+                Section {
+                    Button {
+                        syncAndReloadWidgets()
+                        isShowingWidgetsSheet = true
+                    } label: {
+                        HStack {
+                            Label("Configurar y Sincronizar Widgets", systemImage: "rectangle.grid.2x2.fill")
+                            Spacer()
+                            Text(isWidgetExtensionEmbedded ? "Activos" : "Verificar")
+                                .font(.kashMicro)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    (isWidgetExtensionEmbedded ? Color(hex: "#10B981") : Color(hex: "#F59E0B")).opacity(0.15),
+                                    in: Capsule()
+                                )
+                                .foregroundStyle(isWidgetExtensionEmbedded ? Color(hex: "#10B981") : Color(hex: "#F59E0B"))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Label("Widgets iOS (Inicio y Bloqueo)", systemImage: "sparkles.rectangle.stack.fill")
+                } footer: {
+                    Text("Incluye 3 widgets nativos (Deuda y Acciones 2x2/4x2/4x4, Próximos Pagos y Pantalla de Bloqueo). Toca aquí para forzar su indexación en la galería de iOS.")
+                }
+
+                // SECCIÓN 4: NOTIFICACIONES Y RECORDATORIOS
                 Section {
                     Picker("Avisar vencimiento de pago con", selection: $paymentReminderDays) {
                         Text("1 día de anticipación").tag(1)
@@ -81,7 +141,8 @@ struct SettingsView: View {
                         Text("5 días de anticipación").tag(5)
                     }
                     .onChange(of: paymentReminderDays) { _, newValue in
-                        currentSettings.paymentReminderDaysBefore = newValue
+                        let s = ensureSettings()
+                        s.paymentReminderDaysBefore = newValue
                         try? modelContext.save()
                     }
                 } header: {
@@ -90,19 +151,29 @@ struct SettingsView: View {
                     Text("Los días de corte se configuran de forma específica en cada tarjeta.")
                 }
 
-                // SECCIÓN 4: PARÁMETROS DE SIMULADORES Y FINANZAS
+                // SECCIÓN 5: PARÁMETROS DE SIMULADORES Y FINANZAS
                 Section {
                     HStack {
                         Text("Ingreso Mensual Neto")
                         Spacer()
-                        TextField("$0.00", text: $monthlyIncomeString)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .onSubmit {
-                                let income = Decimal(string: monthlyIncomeString.replacingOccurrences(of: ",", with: "")) ?? 0
-                                currentSettings.monthlyIncome = income
-                                try? modelContext.save()
-                            }
+                        HStack(spacing: 2) {
+                            Text("$")
+                                .foregroundStyle(.secondary)
+                            TextField("0.00", text: $monthlyIncomeString)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .focused($isMonthlyIncomeFocused)
+                                .frame(minWidth: 90)
+                                .onChange(of: isMonthlyIncomeFocused) { _, _ in
+                                    saveMonthlyIncome()
+                                }
+                                .onChange(of: monthlyIncomeString) { _, _ in
+                                    saveMonthlyIncome()
+                                }
+                                .onSubmit {
+                                    saveMonthlyIncome()
+                                }
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -115,21 +186,18 @@ struct SettingsView: View {
                         }
                         Slider(value: $debtAllocationPercentage, in: 0.1...1.0, step: 0.05)
                             .onChange(of: debtAllocationPercentage) { _, newValue in
-                                currentSettings.debtAllocationPercentage = newValue
+                                let s = ensureSettings()
+                                s.debtAllocationPercentage = newValue
                                 try? modelContext.save()
                             }
                     }
-
-                    HStack {
-                        Text("Comisión Terminal (%)")
-                        Spacer()
-                        Text("\(terminalCommissionRate, specifier: "%.2f")%")
-                    }
                 } header: {
                     Label("Parámetros y Capacidad de Pago", systemImage: "chart.line.uptrend.xyaxis")
+                } footer: {
+                    Text("El ingreso mensual se guarda automáticamente al editar o quitar el foco del campo.")
                 }
 
-                // SECCIÓN 5: COPIAS DE SEGURIDAD Y PORTABILIDAD
+                // SECCIÓN 6: COPIAS DE SEGURIDAD Y PORTABILIDAD
                 Section {
                     Button {
                         exportBackup()
@@ -160,7 +228,7 @@ struct SettingsView: View {
                     Text("Los respaldos son 100% compatibles con JSON universal sin bloqueo de proveedor. Puedes guardar en Archivos, compartir vía AirDrop o restaurar en cualquier momento.")
                 }
 
-                // SECCIÓN 6: ZONA DE PELIGRO - BORRADO TOTAL
+                // SECCIÓN 7: ZONA DE PELIGRO - BORRADO TOTAL
                 Section {
                     Button(role: .destructive) {
                         isShowingDeleteConfirmationAlert = true
@@ -183,7 +251,7 @@ struct SettingsView: View {
                         .multilineTextAlignment(.leading)
                 }
 
-                // SECCIÓN 7: PIE DE PÁGINA DEL SISTEMA
+                // SECCIÓN 8: PIE DE PÁGINA DEL SISTEMA
                 Section {
                     VStack(alignment: .center, spacing: 8) {
                         HStack(spacing: 6) {
@@ -194,7 +262,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Control TDC • KASH v1.2.1 (Build 4)")
+                        Text("Control TDC • KASH v1.3.0 (Build 5)")
                             .font(.kashMicro)
                             .foregroundStyle(.tertiary)
 
@@ -213,9 +281,19 @@ struct SettingsView: View {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Listo") {
+                        saveMonthlyIncome()
+                        isMonthlyIncomeFocused = false
                         UIApplication.endEditing()
                     }
                 }
+            }
+            .sheet(isPresented: $isShowingWidgetsSheet) {
+                WidgetsGalleryPreviewSheet(
+                    isExtensionEmbedded: isWidgetExtensionEmbedded,
+                    onReloadRequested: {
+                        syncAndReloadWidgets()
+                    }
+                )
             }
             .sheet(isPresented: $isShowingExportActivity) {
                 if let url = exportURL {
@@ -248,15 +326,52 @@ struct SettingsView: View {
             .onAppear {
                 loadInitialSettings()
             }
+            .onDisappear {
+                saveMonthlyIncome()
+            }
         }
+    }
+
+    private var isWidgetExtensionEmbedded: Bool {
+        guard let plugInsURL = Bundle.main.builtInPlugInsURL else { return false }
+        let widgetURL = plugInsURL.appendingPathComponent("KASHWidgets.appex")
+        return FileManager.default.fileExists(atPath: widgetURL.path)
+    }
+
+    private func syncAndReloadWidgets() {
+        let cardDebt = creditCards.filter { $0.isActive }.reduce(0) { $0 + $1.currentBalance }
+        let loanDebt = liquidityAccounts.filter { $0.isActive && $0.accountType == .loan }.reduce(0) { $0 + $1.availableBalance }
+        let totalDebt = cardDebt + loanDebt
+        let realLiquidity = liquidityAccounts.filter { $0.isActive && $0.accountType != .loan }.reduce(0) { $0 + $1.availableBalance }
+        let totalLimit = creditCards.filter { $0.isActive }.reduce(0) { $0 + $1.creditLimit }
+        let ratio = totalLimit > 0 ? NSDecimalNumber(decimal: totalDebt / totalLimit).doubleValue : 0
+
+        let sortedPending = upcomingPayments.filter { $0.status == .pending }.sorted { $0.dueDate < $1.dueDate }
+        let nextCard = sortedPending.first?.card?.name ?? sortedPending.first?.concept
+        let nextDays = sortedPending.first.map {
+            max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0.dueDate).day ?? 0)
+        }
+
+        let snapshot = KASHWidgetSnapshot(
+            totalDebt: totalDebt,
+            realLiquidity: realLiquidity,
+            utilizationRatio: ratio,
+            healthStatus: ratio < 0.30 ? "Óptimo" : (ratio <= 0.50 ? "Alerta" : "Crítico"),
+            nextUpcomingCard: nextCard,
+            nextUpcomingDays: nextDays,
+            activeCardsCount: creditCards.filter { $0.isActive }.count,
+            lastUpdated: Date()
+        )
+        KASHSharedStore.saveSnapshot(snapshot)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func exportBackup() {
         do {
+            saveMonthlyIncome()
             let url = try BackupManager.shared.generateUnifiedBackupJSON(modelContext: modelContext)
             self.exportURL = url
 
-            // Presentar nativamente en el view controller superior para garantizar apertura
             if let windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
                let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }),
                var topVC = keyWindow.rootViewController {
@@ -288,6 +403,7 @@ struct SettingsView: View {
                 alertMessage = summary
                 isShowingAlert = true
                 loadInitialSettings()
+                syncAndReloadWidgets()
             } catch {
                 alertMessage = "Error al importar el archivo: \(error.localizedDescription)"
                 isShowingAlert = true
@@ -299,18 +415,11 @@ struct SettingsView: View {
     }
 
     private func loadInitialSettings() {
-        if userSettingsList.isEmpty {
-            let initial = UserSettings()
-            modelContext.insert(initial)
-            try? modelContext.save()
-        }
-
-        let s = currentSettings
+        let s = ensureSettings()
         monthlyIncomeString = s.monthlyIncome > 0 ? "\(s.monthlyIncome)" : ""
         debtAllocationPercentage = s.debtAllocationPercentage
         paymentReminderDays = s.paymentReminderDaysBefore
         biometricLockMandatory = s.biometricLockMandatory
-        terminalCommissionRate = s.terminalCommissionRate * 100
     }
 
     private func confirmAndExecuteWipe() {
@@ -328,6 +437,187 @@ struct SettingsView: View {
                 }
             }
         )
+    }
+}
+
+// MARK: - WidgetsGalleryPreviewSheet
+struct WidgetsGalleryPreviewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let isExtensionEmbedded: Bool
+    let onReloadRequested: () -> Void
+
+    @State private var reloadFeedbackShown = false
+    private var snapshot: KASHWidgetSnapshot {
+        KASHSharedStore.loadSnapshot()
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    // Diagnóstico del estado del plugin KASHWidgets.appex
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            Image(systemName: isExtensionEmbedded ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(isExtensionEmbedded ? Color(hex: "#10B981") : Color(hex: "#F59E0B"))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(isExtensionEmbedded ? "Extensión KASHWidgets Instalada" : "Extensión Removida al Instalar (Sideloadly)")
+                                    .font(.kashBodyBold)
+                                Text(
+                                    isExtensionEmbedded
+                                        ? "El binario KASHWidgets.appex está activo dentro de la app."
+                                        : "Tu herramienta de instalación (Sideloadly) eliminó la carpeta PlugIns al firmar con cuenta gratuita."
+                                )
+                                .font(.kashMicro)
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if !isExtensionEmbedded {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("¿Cómo hacer que aparezcan en la pantalla de inicio desde Sideloadly?")
+                                    .font(.kashCaptionBold)
+                                    .foregroundStyle(Color(hex: "#F59E0B"))
+                                Text("1. En Sideloadly (Windows), haz clic en 'Advanced Options'.\n2. Desmarca la casilla 'Remove App Extensions (PlugIns)'.\n3. Reinstala KASH.ipa y reinicia tu iPhone para que iOS indexe los 3 widgets en la galería.")
+                                    .font(.kashMicro)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Divider()
+                            Text("Si acabas de instalar KASH y aún no aparece al buscar 'KASH' en la galería de widgets de iOS, pulsa el botón inferior y reinicia tu iPhone una vez para actualizar el caché de SpringBoard.")
+                                .font(.kashMicro)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
+                            onReloadRequested()
+                            withAnimation {
+                                reloadFeedbackShown = true
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: reloadFeedbackShown ? "checkmark.circle.fill" : "arrow.clockwise.circle.fill")
+                                Text(reloadFeedbackShown ? "¡Widgets Sincronizados con WidgetCenter!" : "Sincronizar y Registrar Widgets Ahora")
+                            }
+                            .font(.kashCaptionBold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color(hex: "#2563EB"), in: RoundedRectangle(cornerRadius: 10))
+                            .foregroundStyle(.white)
+                        }
+                        .padding(.top, 4)
+                    }
+                    .padding(16)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+
+                    // Vista previa en vivo de los Widgets
+                    Text("Vista Previa en Vivo de tus Widgets")
+                        .font(.kashTitleMedium)
+
+                    // Preview Small
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("1. Widget Pequeño (2x2) — Resumen de Deuda")
+                            .font(.kashCaptionBold)
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "creditcard.fill")
+                                    .foregroundStyle(Color(hex: "#3B82F6"))
+                                Text("DEUDA TOTAL")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                            Text(snapshot.totalDebt.formatted(.currency(code: "MXN")))
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                            Spacer()
+                            Text("🟢 \(snapshot.healthStatus) (\(Int(snapshot.utilizationRatio * 100))% uso)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color(hex: "#10B981"))
+                        }
+                        .padding(16)
+                        .frame(width: 170, height: 155, alignment: .leading)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+                    }
+
+                    // Preview Medium Interactivo
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("2. Widget Mediano Interactivo (4x2) — Acciones Rápidas")
+                            .font(.kashCaptionBold)
+                            .foregroundStyle(.secondary)
+
+                        VStack(spacing: 12) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("💳 DEUDA TOTAL")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.secondary)
+                                    Text(snapshot.totalDebt.formatted(.currency(code: "MXN")))
+                                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                                }
+                                Spacer()
+                                VStack(alignment: .center, spacing: 2) {
+                                    Text("% USO")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.secondary)
+                                    Text("\(Int(snapshot.utilizationRatio * 100))%")
+                                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("SALUD BURÓ")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.secondary)
+                                    Text("🟢 \(snapshot.healthStatus)")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(Color(hex: "#10B981"))
+                                }
+                            }
+                            Divider()
+                            HStack(spacing: 8) {
+                                Label("Gasto", systemImage: "plus")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 7)
+                                    .background(Color(hex: "#EF4444").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                                    .foregroundStyle(Color(hex: "#EF4444"))
+
+                                Label("Ingreso", systemImage: "plus")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 7)
+                                    .background(Color(hex: "#10B981").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                                    .foregroundStyle(Color(hex: "#10B981"))
+
+                                Label("Pagar", systemImage: "creditcard")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 7)
+                                    .background(Color(hex: "#2563EB").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                                    .foregroundStyle(Color(hex: "#2563EB"))
+                            }
+                        }
+                        .padding(16)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+                    }
+                }
+                .padding()
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("Widgets KASH")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Cerrar") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -40,7 +40,7 @@ struct UserSettingsDTO: Codable {
     let paymentReminderDaysBefore: Int
     let biometricLockMandatory: Bool
     let isPrivacyModeEnabled: Bool
-    let terminalCommissionRate: Double
+    let terminalCommissionRate: Double?
 }
 
 struct CreditCardDTO: Codable {
