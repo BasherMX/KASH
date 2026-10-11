@@ -21,7 +21,7 @@ final class BackupManager {
         let records = try modelContext.fetch(FetchDescriptor<MonthlyRecord>())
         let payments = try modelContext.fetch(FetchDescriptor<UpcomingPayment>())
         let transactions = try modelContext.fetch(FetchDescriptor<Transaction>())
-        let settings = try modelContext.fetch(FetchDescriptor<UserSettings>()).first ?? UserSettings()
+        let settings = UserSettings.shared(in: modelContext)
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -362,12 +362,8 @@ final class BackupManager {
 
         // G. Guardar Settings si vienen en el respaldo
         if let sDTO = package.settings {
-            let existingSettings = (try? modelContext.fetch(FetchDescriptor<UserSettings>()))?.first
-            let settings = existingSettings ?? UserSettings()
-            if existingSettings == nil {
-                modelContext.insert(settings)
-            }
-            settings.monthlyIncome = Decimal(sDTO.monthlyIncome)
+            let settings = UserSettings.shared(in: modelContext)
+            UserSettings.updateMonthlyIncome(Decimal(sDTO.monthlyIncome), in: modelContext)
             settings.debtAllocationPercentage = sDTO.debtAllocationPercentage
             settings.paymentReminderDaysBefore = sDTO.paymentReminderDaysBefore
             settings.biometricLockMandatory = sDTO.biometricLockMandatory
@@ -379,6 +375,7 @@ final class BackupManager {
         }
 
         try modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
 
         return "Respaldo importado con éxito:\n• \(package.creditCards.count) Tarjetas\n• \(package.liquidityAccounts.count) Cuentas\n• \(package.monthlyRecords.count) Cortes Mensuales\n• \(package.transactions.count) Movimientos"
     }

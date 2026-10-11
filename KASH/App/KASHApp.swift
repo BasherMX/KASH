@@ -1,14 +1,93 @@
 import SwiftUI
 import SwiftData
 import Foundation
+import WidgetKit
+import AppIntents
+
+// MARK: - KASHWidgetSyncService
+/// Servicio centralizado que sincroniza el estado financiero real de SwiftData con los Widgets de iOS
+@MainActor
+enum KASHWidgetSyncService {
+    static func sync(modelContext: ModelContext) {
+        let cards = (try? modelContext.fetch(FetchDescriptor<CreditCard>())) ?? []
+        let accounts = (try? modelContext.fetch(FetchDescriptor<LiquidityAccount>())) ?? []
+        let payments = (try? modelContext.fetch(FetchDescriptor<UpcomingPayment>())) ?? []
+
+        let activeCards = cards.filter { $0.isActive }
+        let cardDebt = activeCards.reduce(Decimal(0)) { $0 + $1.currentBalance }
+        let loanDebt = accounts.filter { $0.isActive && $0.accountType == .loan }
+            .reduce(Decimal(0)) { $0 + $1.availableBalance }
+        let totalDebt = cardDebt + loanDebt
+
+        let realLiquidity = accounts.filter { $0.isActive && $0.accountType != .loan }
+            .reduce(Decimal(0)) { $0 + $1.availableBalance }
+
+        let totalLimit = activeCards.reduce(Decimal(0)) { $0 + $1.creditLimit }
+        let ratio = totalLimit > 0 ? NSDecimalNumber(decimal: totalDebt / totalLimit).doubleValue : 0.0
+
+        let sortedPending = payments
+            .filter { $0.status == .pending }
+            .sorted { $0.dueDate < $1.dueDate }
+        let nextCard = sortedPending.first?.card?.name ?? sortedPending.first?.concept
+        let nextDays = sortedPending.first.map {
+            max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0.dueDate).day ?? 0)
+        }
+
+        let snapshot = KASHWidgetSnapshot(
+            totalDebt: totalDebt,
+            realLiquidity: realLiquidity,
+            utilizationRatio: ratio,
+            healthStatus: ratio < 0.30 ? "Óptimo" : (ratio <= 0.50 ? "Alerta" : "Crítico"),
+            nextUpcomingCard: nextCard,
+            nextUpcomingDays: nextDays,
+            activeCardsCount: activeCards.count,
+            lastUpdated: Date()
+        )
+        KASHSharedStore.saveSnapshot(snapshot)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+}
+
+// MARK: - KASHShortcutsProvider (App Intents Registration for Siri, Spotlight & Shortcuts)
+struct KASHShortcutsProvider: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: QuickExpenseIntent(),
+            phrases: [
+                "Registrar gasto en \(.applicationName)",
+                "Nuevo gasto en \(.applicationName)"
+            ],
+            shortTitle: "Registrar Gasto",
+            systemImageName: "plus.circle.fill"
+        )
+        AppShortcut(
+            intent: QuickIncomeIntent(),
+            phrases: [
+                "Registrar ingreso en \(.applicationName)",
+                "Nuevo ingreso en \(.applicationName)"
+            ],
+            shortTitle: "Registrar Ingreso",
+            systemImageName: "arrow.down.left.circle.fill"
+        )
+        AppShortcut(
+            intent: PayCardIntent(),
+            phrases: [
+                "Pagar tarjeta en \(.applicationName)",
+                "Abonar a tarjeta en \(.applicationName)"
+            ],
+            shortTitle: "Pagar Tarjeta",
+            systemImageName: "creditcard.and.123"
+        )
+    }
+}
 
 // MARK: - KASH App Entry Point
 @main
 struct KASHApp: App {
     @StateObject private var appState = AppState()
+    let sharedModelContainer: ModelContainer
 
-    // Configuración de almacenamiento local seguro SwiftData
-    var sharedModelContainer: ModelContainer = {
+    init() {
         let schema = Schema([
             CreditCard.self,
             LiquidityAccount.self,
@@ -19,14 +98,14 @@ struct KASHApp: App {
             UpcomingPayment.self,
             UserSettings.self,
         ])
-        
+
         let modelConfiguration = ModelConfiguration(
             isStoredInMemoryOnly: false
         )
 
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            
+
             // Garantizar que la base de datos local cuente con protección completa de hardware de iOS
             // FileProtectionType.completeUnlessOpen (Secure Enclave encriptado en reposo)
             let storeURL = modelConfiguration.url
@@ -37,29 +116,29 @@ struct KASHApp: App {
                     ofItemAtPath: path
                 )
             }
-            
-            return container
+
+            self.sharedModelContainer = container
+
+            // Inicializar categorías estándar y UserSettings canónico de forma síncrona antes de renderizar vistas
+            let context = container.mainContext
+            Self.initializeDatabaseDefaults(in: context)
+            KASHWidgetSyncService.sync(modelContext: context)
         } catch {
             fatalError("No se pudo inicializar ModelContainer de SwiftData: \(error.localizedDescription)")
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
-                .task {
-                    // Inicializar categorías base si la base de datos está recién creada
-                    initializeDefaultCategoriesIfNeeded()
-                }
         }
         .modelContainer(sharedModelContainer)
     }
 
-    /// Crea las categorías estándar si es la primera vez que se ejecuta la app
+    /// Crea las categorías estándar y asegura que exista exactamente un registro `UserSettings`
     @MainActor
-    private func initializeDefaultCategoriesIfNeeded() {
-        let context = sharedModelContainer.mainContext
+    private static func initializeDatabaseDefaults(in context: ModelContext) {
         let descriptor = FetchDescriptor<TransactionCategory>()
         if let count = try? context.fetchCount(descriptor), count == 0 {
             let defaults: [(String, String, String, TransactionType)] = [
@@ -84,15 +163,10 @@ struct KASHApp: App {
                 )
                 context.insert(cat)
             }
-
-            // Crear UserSettings inicial por defecto si no existe
-            let settingsDescriptor = FetchDescriptor<UserSettings>()
-            if (try? context.fetchCount(settingsDescriptor)) == 0 {
-                let initialSettings = UserSettings()
-                context.insert(initialSettings)
-            }
-
-            try? context.save()
         }
+
+        // Asegurar siempre instancia única de UserSettings incluso si las categorías ya existían
+        _ = UserSettings.shared(in: context)
+        try? context.save()
     }
 }

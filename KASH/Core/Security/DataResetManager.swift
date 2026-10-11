@@ -98,9 +98,10 @@ public final class DataResetManager {
         // 11. Guardar cambios atómicamente en SwiftData
         try modelContext.save()
 
-        // 12. Restablecer UserDefaults (Onboarding y Modo Privacidad)
+        // 12. Restablecer UserDefaults (Onboarding, Ingreso en Caché y Modo Privacidad)
         UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
         UserDefaults.standard.set(false, forKey: "isPrivacyModeEnabled")
+        UserSettings.clearCachedMonthlyIncome()
 
         // 13. Restablecer Snapshot de Widgets a valores iniciales y recargar timelines
         KASHSharedStore.saveSnapshot(.sample)

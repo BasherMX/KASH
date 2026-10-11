@@ -3,6 +3,7 @@ import SwiftData
 
 // MARK: - AnalyticsView
 struct AnalyticsView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query private var transactions: [Transaction]
     @Query private var creditCards: [CreditCard]
     @Query private var monthlyRecords: [MonthlyRecord]
@@ -11,7 +12,7 @@ struct AnalyticsView: View {
     @State private var periodFilter = PeriodFilterSelection()
 
     private var currentSettings: UserSettings {
-        userSettingsList.first ?? UserSettings()
+        userSettingsList.first ?? UserSettings.shared(in: modelContext)
     }
 
     private var filteredTransactions: [Transaction] {

@@ -66,6 +66,7 @@ struct CreditCardsListView: View {
             modelContext.delete(card)
         }
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 }
 
@@ -288,7 +289,7 @@ struct CreditCardEditSheet: View {
     }
 
     private func saveCard() {
-        let cleanLimit = Decimal(string: creditLimitString.replacingOccurrences(of: ",", with: "")) ?? 0
+        let cleanLimit = CurrencyInputParser.parseDecimal(creditLimitString)
         let rateFraction = annualInterestRatePercent / 100.0
 
         if let card = cardToEdit {
@@ -317,6 +318,7 @@ struct CreditCardEditSheet: View {
         }
 
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
         dismiss()
     }
 }

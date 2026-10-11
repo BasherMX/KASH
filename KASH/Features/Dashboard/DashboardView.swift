@@ -7,6 +7,7 @@ import WidgetKit
 /// Vista principal de KASH que aplica estrictamente la Regla de Oro:
 /// "El crédito disponible en una TDC NO es dinero propio."
 struct DashboardView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var appState: AppState
     @Query private var creditCards: [CreditCard]
     @Query private var liquidityAccounts: [LiquidityAccount]
@@ -81,26 +82,7 @@ struct DashboardView: View {
 
     // MARK: - Sincronización con KASHWidgets
     private func syncWidgetData() {
-        let sortedPending = upcomingPayments
-            .filter { $0.status == .pending }
-            .sorted { $0.dueDate < $1.dueDate }
-        let nextCard = sortedPending.first?.card?.name ?? sortedPending.first?.concept
-        let nextDays = sortedPending.first.map {
-            max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0.dueDate).day ?? 0)
-        }
-
-        let snapshot = KASHWidgetSnapshot(
-            totalDebt: totalDebtCurrent,
-            realLiquidity: realLiquidityTotal,
-            utilizationRatio: overallUtilizationRatio,
-            healthStatus: overallUtilizationRatio < 0.30 ? "Óptimo" : (overallUtilizationRatio <= 0.50 ? "Alerta" : "Crítico"),
-            nextUpcomingCard: nextCard,
-            nextUpcomingDays: nextDays,
-            activeCardsCount: creditCards.filter { $0.isActive }.count,
-            lastUpdated: Date()
-        )
-        KASHSharedStore.saveSnapshot(snapshot)
-        WidgetCenter.shared.reloadAllTimelines()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 
     // MARK: - Banner de bienvenida si está vacío
@@ -631,7 +613,25 @@ struct CreditCardMiniCard: View {
                         .tracking(1.0)
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 6)
+
+                // Barra de uso de línea integrada en el plástico
+                GeometryReader { barGeo in
+                    let ratio = min(1.0, max(0.0, card.utilizationPercentage))
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.2))
+                            .frame(height: 3.5)
+                        Capsule()
+                            .fill(
+                                ratio < 0.30 ? Color(hex: "#6EE7B7") :
+                                (ratio <= 0.50 ? Color(hex: "#FDE68A") : Color(hex: "#FCA5A5"))
+                            )
+                            .frame(width: max(4, barGeo.size.width * ratio), height: 3.5)
+                    }
+                }
+                .frame(height: 4)
+                .padding(.bottom, 5)
 
                 // Fila Inferior: Saldo Deudor + Fechas Corte/Pago + Emblema de Red
                 HStack(alignment: .bottom) {

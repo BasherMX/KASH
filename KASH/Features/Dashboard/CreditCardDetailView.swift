@@ -12,6 +12,7 @@ struct CreditCardDetailView: View {
 
     @State private var isEditSheetPresented = false
     @State private var isBatchLogSheetPresented = false
+    @State private var transactionToEdit: Transaction? = nil
 
     private var historicalBalancesChronological: [CardMonthlyBalance] {
         card.sortedBalances.reversed()
@@ -26,7 +27,7 @@ struct CreditCardDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                // 1. Tarjeta Visual Estilizada con Chip EMV
+                // 1. Tarjeta Visual Estilizada con Chip EMV y proporción ISO/IEC 7810 ID-1
                 CardVisualHero(card: card)
 
                 // 2. Métricas Clave y Buró
@@ -39,7 +40,12 @@ struct CreditCardDetailView: View {
                 CardHistoricalCutsSection(card: card)
 
                 // 5. Movimientos con Esta Tarjeta (Agrupado por año y colapsable, año actual descolapsado por defecto)
-                CardRecentTransactionsSection(transactions: cardTransactions)
+                CardRecentTransactionsSection(
+                    transactions: cardTransactions,
+                    onSelectTransaction: { tx in
+                        transactionToEdit = tx
+                    }
+                )
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -68,10 +74,13 @@ struct CreditCardDetailView: View {
         .sheet(isPresented: $isBatchLogSheetPresented) {
             BatchLogSheet()
         }
+        .sheet(item: $transactionToEdit) { tx in
+            QuickTransactionSheet(editingTransaction: tx)
+        }
     }
 }
 
-// MARK: - CardVisualHero
+// MARK: - CardVisualHero (Proporción Física Real ISO/IEC 7810 ID-1 1.586:1)
 private struct CardVisualHero: View {
     let card: CreditCard
 
@@ -94,8 +103,22 @@ private struct CardVisualHero: View {
                     )
                 )
 
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
+            // Reflejos geométricos sutiles tipo tarjeta metálica
+            GeometryReader { geo in
+                Circle()
+                    .fill(Color.white.opacity(0.07))
+                    .frame(width: 210, height: 210)
+                    .offset(x: geo.size.width - 95, y: -60)
+
+                Circle()
+                    .fill(Color.white.opacity(0.05))
+                    .frame(width: 170, height: 170)
+                    .offset(x: geo.size.width - 55, y: geo.size.height - 85)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(card.institution.isEmpty ? "CRÉDITO" : card.institution.uppercased())
                             .font(.kashMicro)
@@ -108,14 +131,19 @@ private struct CardVisualHero: View {
 
                     Spacer()
 
-                    Image(systemName: card.iconName.isEmpty ? "creditcard.fill" : card.iconName)
-                        .font(.system(size: 26))
-                        .foregroundStyle(.white.opacity(0.9))
+                    Text("\(Int(card.utilizationPercentage * 100))% uso")
+                        .font(.kashMicro)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.18), in: Capsule())
                 }
 
-                // Chip EMV + Contactless + Numeración
+                Spacer(minLength: 10)
+
+                // Chip EMV + Contactless + Numeración en Relieve
                 HStack(spacing: 12) {
-                    EMVCardChipView(width: 42, height: 30)
+                    EMVCardChipView(width: 44, height: 32)
 
                     Image(systemName: "wave.3.right")
                         .font(.system(size: 16, weight: .semibold))
@@ -124,13 +152,34 @@ private struct CardVisualHero: View {
                     Spacer()
 
                     Text("••••  ••••  ••••  \(lastFourDigitsSim)")
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .tracking(1.1)
                 }
+
+                Spacer(minLength: 10)
+
+                // Barra de progreso de uso de línea integrada
+                GeometryReader { barGeo in
+                    let ratio = min(1.0, max(0.0, card.utilizationPercentage))
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.2))
+                            .frame(height: 4)
+                        Capsule()
+                            .fill(
+                                ratio < 0.30 ? Color(hex: "#6EE7B7") :
+                                (ratio <= 0.50 ? Color(hex: "#FDE68A") : Color(hex: "#FCA5A5"))
+                            )
+                            .frame(width: max(6, barGeo.size.width * ratio), height: 4)
+                    }
+                }
+                .frame(height: 5)
+                .padding(.bottom, 8)
 
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Saldo Deudor Actual")
+                        Text("SALDO DEUDOR ACTUAL")
                             .font(.kashMicro)
                             .foregroundStyle(.white.opacity(0.75))
                         PrivacyAwareText(
@@ -142,15 +191,27 @@ private struct CardVisualHero: View {
 
                     Spacer()
 
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Límite Total")
-                            .font(.kashMicro)
-                            .foregroundStyle(.white.opacity(0.75))
-                        PrivacyAwareText(
-                            amount: card.creditLimit,
-                            font: .kashCaptionBold,
-                            foregroundColor: .white.opacity(0.9)
-                        )
+                    VStack(alignment: .trailing, spacing: 4) {
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text("Límite Total")
+                                .font(.kashMicro)
+                                .foregroundStyle(.white.opacity(0.75))
+                            PrivacyAwareText(
+                                amount: card.creditLimit,
+                                font: .kashCaptionBold,
+                                foregroundColor: .white.opacity(0.92)
+                            )
+                        }
+
+                        // Emblema de red de pagos
+                        HStack(spacing: -7) {
+                            Circle()
+                                .fill(Color.white.opacity(0.45))
+                                .frame(width: 20, height: 20)
+                            Circle()
+                                .fill(Color.white.opacity(0.75))
+                                .frame(width: 20, height: 20)
+                        }
                     }
                 }
             }
@@ -159,15 +220,16 @@ private struct CardVisualHero: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [.white.opacity(0.35), .white.opacity(0.08)],
+                        colors: [.white.opacity(0.38), .white.opacity(0.08)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
                     lineWidth: 1
                 )
         }
+        .aspectRatio(1.586, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .shadow(color: Color(hex: card.colorHex).opacity(0.3), radius: 10, y: 5)
+        .shadow(color: Color(hex: card.colorHex).opacity(0.32), radius: 10, y: 5)
     }
 }
 
@@ -506,6 +568,7 @@ private struct CardHistoricalCutsSection: View {
 // MARK: - CardRecentTransactionsSection (Agrupado por año y colapsable, año actual descolapsado por defecto)
 private struct CardRecentTransactionsSection: View {
     let transactions: [Transaction]
+    var onSelectTransaction: ((Transaction) -> Void)? = nil
 
     @State private var expandedYears: Set<Int> = [Calendar.current.component(.year, from: Date())]
 
@@ -586,25 +649,36 @@ private struct CardRecentTransactionsSection: View {
                             if isYearExpanded {
                                 VStack(spacing: 8) {
                                     ForEach(Array(group.items.enumerated()), id: \.element.id) { idx, tx in
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(tx.concept)
-                                                    .font(.kashCaptionBold)
-                                                Text(tx.transactionDate.formatted(date: .abbreviated, time: .shortened))
-                                                    .font(.kashMicro)
-                                                    .foregroundStyle(.secondary)
+                                        Button {
+                                            onSelectTransaction?(tx)
+                                        } label: {
+                                            HStack {
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(tx.concept)
+                                                        .font(.kashCaptionBold)
+                                                        .foregroundStyle(.primary)
+                                                    Text(tx.transactionDate.formatted(date: .abbreviated, time: .shortened))
+                                                        .font(.kashMicro)
+                                                        .foregroundStyle(.secondary)
+                                                }
+
+                                                Spacer()
+
+                                                PrivacyAwareText(
+                                                    amount: tx.amount,
+                                                    font: .kashCaptionBold,
+                                                    foregroundColor: tx.type == .income || tx.type == .cardPayment ? Color(hex: "#10B981") : Color(hex: "#EF4444")
+                                                )
+
+                                                Image(systemName: "chevron.right")
+                                                    .font(.system(size: 10, weight: .semibold))
+                                                    .foregroundStyle(.tertiary)
                                             }
-
-                                            Spacer()
-
-                                            PrivacyAwareText(
-                                                amount: tx.amount,
-                                                font: .kashCaptionBold,
-                                                foregroundColor: tx.type == .income || tx.type == .cardPayment ? Color(hex: "#10B981") : Color(hex: "#EF4444")
-                                            )
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .contentShape(Rectangle())
                                         }
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
+                                        .buttonStyle(.plain)
 
                                         if idx < group.items.count - 1 {
                                             Divider()

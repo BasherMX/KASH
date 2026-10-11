@@ -180,7 +180,7 @@ struct BatchLogSheet: View {
         // 2. Actualizar o insertar balances para cada tarjeta activa
         for card in creditCards where card.isActive {
             let amountString = balancesDict[card.id] ?? "0"
-            let amount = Decimal(string: amountString.replacingOccurrences(of: ",", with: "")) ?? 0
+            let amount = CurrencyInputParser.parseDecimal(amountString)
 
             if let existingBalance = recordToSave.balances?.first(where: { $0.card?.id == card.id }) {
                 existingBalance.balanceUsed = amount
@@ -202,6 +202,7 @@ struct BatchLogSheet: View {
         }
 
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
         dismiss()
     }
 

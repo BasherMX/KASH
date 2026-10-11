@@ -8,10 +8,21 @@ struct TransactionsListView: View {
     @Query(sort: \Transaction.transactionDate, order: .reverse) private var transactions: [Transaction]
 
     @State private var periodFilter = PeriodFilterSelection()
+    @State private var expandedYears: Set<Int> = [Calendar.current.component(.year, from: Date())]
     @State private var selectedFilter: TransactionType? = nil
     @State private var isQuickTxSheetPresented = false
     @State private var isCardPaymentSheetPresented = false
     @State private var transactionToEdit: Transaction? = nil
+
+    private var transactionsGroupedByYear: [(year: Int, items: [Transaction])] {
+        let grouped = Dictionary(grouping: filteredTransactions) { tx in
+            Calendar.current.component(.year, from: tx.transactionDate)
+        }
+        return grouped.keys.sorted(by: >).map { year in
+            let items = (grouped[year] ?? []).sorted { $0.transactionDate > $1.transactionDate }
+            return (year: year, items: items)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -77,6 +88,80 @@ struct TransactionsListView: View {
                             .padding(.bottom, 24)
                         }
                     }
+                } else if periodFilter.mode == .historical {
+                    List {
+                        ForEach(transactionsGroupedByYear, id: \.year) { group in
+                            let isYearExpanded = expandedYears.contains(group.year)
+                            Section {
+                                if isYearExpanded {
+                                    ForEach(group.items) { tx in
+                                        TransactionRow(tx: tx)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture {
+                                                transactionToEdit = tx
+                                            }
+                                            .swipeActions(edge: .leading) {
+                                                Button {
+                                                    transactionToEdit = tx
+                                                } label: {
+                                                    Label("Editar", systemImage: "pencil")
+                                                }
+                                                .tint(Color(hex: "#2563EB"))
+                                            }
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                                Button(role: .destructive) {
+                                                    deleteTransaction(tx)
+                                                } label: {
+                                                    Label("Eliminar", systemImage: "trash")
+                                                }
+                                            }
+                                    }
+                                }
+                            } header: {
+                                Button {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                        if isYearExpanded {
+                                            expandedYears.remove(group.year)
+                                        } else {
+                                            expandedYears.insert(group.year)
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: isYearExpanded ? "folder.fill" : "folder")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(Color(hex: "#2563EB"))
+
+                                        Text("Año \(String(group.year))")
+                                            .font(.kashBodyBold)
+                                            .foregroundStyle(.primary)
+
+                                        if group.year == Calendar.current.component(.year, from: Date()) {
+                                            Text("Actual")
+                                                .font(.kashMicro)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color(hex: "#2563EB").opacity(0.15), in: Capsule())
+                                                .foregroundStyle(Color(hex: "#2563EB"))
+                                        }
+
+                                        Spacer()
+
+                                        Text("\(group.items.count) \(group.items.count == 1 ? "movimiento" : "movimientos")")
+                                            .font(.kashMicro)
+                                            .foregroundStyle(.secondary)
+
+                                        Image(systemName: isYearExpanded ? "chevron.up" : "chevron.down")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
                 } else {
                     List {
                         ForEach(filteredTransactions) { tx in
@@ -145,13 +230,45 @@ struct TransactionsListView: View {
         }
     }
 
+    private func revertTransactionBalances(_ tx: Transaction) {
+        switch tx.type {
+        case .expense:
+            if let acc = tx.liquidityAccount {
+                acc.availableBalance += tx.amount
+            }
+        case .income:
+            if let acc = tx.liquidityAccount {
+                acc.availableBalance -= tx.amount
+            }
+        case .cardPayment:
+            if let acc = tx.liquidityAccount {
+                acc.availableBalance += tx.amount
+            }
+            if let latestBalance = tx.destinationCard?.sortedBalances.first {
+                latestBalance.balanceUsed += tx.amount
+            }
+        case .transfer:
+            if let acc = tx.liquidityAccount {
+                acc.availableBalance += tx.amount
+            }
+        }
+    }
+
+    private func deleteTransaction(_ tx: Transaction) {
+        revertTransactionBalances(tx)
+        modelContext.delete(tx)
+        try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
+    }
+
     private func deleteTransactions(at offsets: IndexSet) {
         for index in offsets {
             let tx = filteredTransactions[index]
+            revertTransactionBalances(tx)
             modelContext.delete(tx)
         }
         try? modelContext.save()
-        WidgetCenter.shared.reloadAllTimelines()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 }
 

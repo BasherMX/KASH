@@ -30,6 +30,27 @@ struct DebtHistoryChartView: View {
                             .font(.kashCaption)
                             .foregroundStyle(.secondary)
                     }
+            } else if chartData.count == 1, let single = chartData.first {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(hex: "#2563EB").opacity(0.08))
+                    .frame(height: 150)
+                    .overlay {
+                        VStack(spacing: 6) {
+                            Text(single.date.formatted(.dateTime.month(.wide).year()).capitalized)
+                                .font(.kashCaptionBold)
+                                .foregroundStyle(.secondary)
+                            PrivacyAwareText(
+                                amount: Decimal(single.amount),
+                                font: .kashAmountLarge,
+                                foregroundColor: Color(hex: "#2563EB")
+                            )
+                            Text("Registra un segundo corte mensual para trazar la curva de evolución.")
+                                .font(.kashMicro)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 16)
+                        }
+                    }
             } else {
                 Chart {
                     ForEach(chartData) { item in

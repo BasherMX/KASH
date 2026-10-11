@@ -174,7 +174,7 @@ struct QuickTransactionSheet: View {
     }
 
     private func saveTransaction() {
-        let amount = Decimal(string: amountString.replacingOccurrences(of: ",", with: "")) ?? 0
+        let amount = CurrencyInputParser.parseDecimal(amountString)
         let card = creditCards.first(where: { $0.id == selectedCardId })
         let account = liquidityAccounts.first(where: { $0.id == selectedAccountId })
         let category = categories.first(where: { $0.id == selectedCategoryId })
@@ -229,6 +229,7 @@ struct QuickTransactionSheet: View {
         }
 
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
         dismiss()
     }
 }

@@ -57,6 +57,14 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
+          echo "=== Verifying WidgetKit Extension Registration on iOS Simulator ==="
+          SIM_APP_PATH=$(find build/Build/Products -name "KASH.app" -type d | grep -i "iphonesimulator" | head -n 1)
+          if [ -n "$SIM_APP_PATH" ]; then
+            xcrun simctl boot "$SIM_UDID" 2>/dev/null || true
+            xcrun simctl install "$SIM_UDID" "$SIM_APP_PATH"
+            xcrun simctl spawn "$SIM_UDID" pluginkit -m -v -i com.kash.app.widgets || true
+          fi
+
       - name: Create Zip Artifact
         run: |
           mkdir -p "$GITHUB_WORKSPACE/output"
@@ -68,6 +76,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '5'" "$APP_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.3.0'" "$APP_PATH/Info.plist" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.3.0'" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :UILaunchScreen" "$APP_PATH/Info.plist" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" "$APP_PATH/Info.plist" 2>/dev/null || true
 
           for APPEX in "$APP_PATH/PlugIns/"*.appex; do
@@ -121,6 +130,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '5'" "$DEVICE_APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '1.3.0'" "$DEVICE_APP/Info.plist" 2>/dev/null || \
           /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '1.3.0'" "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :UILaunchScreen" "$DEVICE_APP/Info.plist" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" "$DEVICE_APP/Info.plist" 2>/dev/null || true
 
           echo "=== Main App Info.plist ==="
@@ -128,7 +138,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$DEVICE_APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$DEVICE_APP/Info.plist"
 
-          # 2. App Extensions Info.plist adjustments & Ad-Hoc Signing
+          # 2. App Extensions Info.plist adjustments & Ad-Hoc Signing with Entitlements
           for APPEX in "$DEVICE_APP/PlugIns/"*.appex; do
             if [ -d "$APPEX" ]; then
               echo "=== Configuring App Extension: $APPEX ==="
@@ -141,11 +151,13 @@ jobs:
               echo "Extension Bundle ID: $(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APPEX/Info.plist")"
               echo "Extension CFBundleVersion: $(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APPEX/Info.plist")"
               echo "Extension CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APPEX/Info.plist")"
-              codesign --force --sign - --timestamp=none "$APPEX" || true
+              codesign --force --sign - --entitlements "$GITHUB_WORKSPACE/KASHWidgets/KASHWidgets.entitlements" --timestamp=none "$APPEX"
+              codesign -d --entitlements :- "$APPEX" || true
             fi
           done
 
-          codesign --force --sign - --timestamp=none "$DEVICE_APP" || true
+          codesign --force --sign - --entitlements "$GITHUB_WORKSPACE/KASH/KASH.entitlements" --timestamp=none "$DEVICE_APP"
+          codesign -d --entitlements :- "$DEVICE_APP" || true
 
           cp -R "$DEVICE_APP" Payload/
           zip -r "$GITHUB_WORKSPACE/output/KASH.ipa" Payload

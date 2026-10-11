@@ -172,7 +172,7 @@ struct CardPaymentSheet: View {
         guard let sourceAcc = selectedSourceAccount,
               let destCard = selectedDestinationCard else { return }
 
-        let amount = Decimal(string: amountString.replacingOccurrences(of: ",", with: "")) ?? 0
+        let amount = CurrencyInputParser.parseDecimal(amountString)
         guard amount > 0 else { return }
 
         // 1. Descontar liquidez real de la cuenta de débito
@@ -208,6 +208,7 @@ struct CardPaymentSheet: View {
         modelContext.insert(tx)
 
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
         dismiss()
     }
 }

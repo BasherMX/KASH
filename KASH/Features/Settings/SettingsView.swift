@@ -30,29 +30,20 @@ struct SettingsView: View {
     @State private var isShowingAlert: Bool = false
     @State private var isShowingDeleteConfirmationAlert: Bool = false
 
+    @State private var showIncomeSavedFeedback: Bool = false
+
     @discardableResult
     private func ensureSettings() -> UserSettings {
-        if let first = userSettingsList.first {
-            return first
-        }
-        let created = UserSettings()
-        modelContext.insert(created)
-        try? modelContext.save()
-        return created
+        UserSettings.shared(in: modelContext)
     }
 
-    private func saveMonthlyIncome() {
-        let cleaned = monthlyIncomeString
-            .replacingOccurrences(of: "$", with: "")
-            .replacingOccurrences(of: ",", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let income = Decimal(string: cleaned) ?? 0
-        let settings = ensureSettings()
-        if settings.monthlyIncome != income {
-            settings.monthlyIncome = income
-            try? modelContext.save()
-        } else {
-            try? modelContext.save()
+    private func saveMonthlyIncome(showFeedback: Bool = false) {
+        let income = CurrencyInputParser.parseDecimal(monthlyIncomeString)
+        UserSettings.updateMonthlyIncome(income, in: modelContext)
+        if showFeedback {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showIncomeSavedFeedback = true
+            }
         }
     }
 
@@ -154,7 +145,17 @@ struct SettingsView: View {
                 // SECCIÓN 5: PARÁMETROS DE SIMULADORES Y FINANZAS
                 Section {
                     HStack {
-                        Text("Ingreso Mensual Neto")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Ingreso Mensual Neto")
+                            if showIncomeSavedFeedback {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                    Text("Guardado automáticamente")
+                                }
+                                .font(.kashMicro)
+                                .foregroundStyle(Color(hex: "#10B981"))
+                            }
+                        }
                         Spacer()
                         HStack(spacing: 2) {
                             Text("$")
@@ -163,15 +164,21 @@ struct SettingsView: View {
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                                 .focused($isMonthlyIncomeFocused)
-                                .frame(minWidth: 90)
-                                .onChange(of: isMonthlyIncomeFocused) { _, _ in
-                                    saveMonthlyIncome()
+                                .frame(minWidth: 100)
+                                .onChange(of: isMonthlyIncomeFocused) { wasFocused, isFocused in
+                                    if wasFocused && !isFocused {
+                                        saveMonthlyIncome(showFeedback: true)
+                                    } else {
+                                        saveMonthlyIncome(showFeedback: false)
+                                    }
                                 }
                                 .onChange(of: monthlyIncomeString) { _, _ in
-                                    saveMonthlyIncome()
+                                    if isMonthlyIncomeFocused {
+                                        saveMonthlyIncome(showFeedback: true)
+                                    }
                                 }
                                 .onSubmit {
-                                    saveMonthlyIncome()
+                                    saveMonthlyIncome(showFeedback: true)
                                 }
                         }
                     }
@@ -329,41 +336,21 @@ struct SettingsView: View {
             .onDisappear {
                 saveMonthlyIncome()
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                saveMonthlyIncome(showFeedback: true)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                saveMonthlyIncome()
+            }
         }
     }
 
     private var isWidgetExtensionEmbedded: Bool {
-        guard let plugInsURL = Bundle.main.builtInPlugInsURL else { return false }
-        let widgetURL = plugInsURL.appendingPathComponent("KASHWidgets.appex")
-        return FileManager.default.fileExists(atPath: widgetURL.path)
+        KASHSharedStore.isWidgetExtensionEmbedded
     }
 
     private func syncAndReloadWidgets() {
-        let cardDebt = creditCards.filter { $0.isActive }.reduce(0) { $0 + $1.currentBalance }
-        let loanDebt = liquidityAccounts.filter { $0.isActive && $0.accountType == .loan }.reduce(0) { $0 + $1.availableBalance }
-        let totalDebt = cardDebt + loanDebt
-        let realLiquidity = liquidityAccounts.filter { $0.isActive && $0.accountType != .loan }.reduce(0) { $0 + $1.availableBalance }
-        let totalLimit = creditCards.filter { $0.isActive }.reduce(0) { $0 + $1.creditLimit }
-        let ratio = totalLimit > 0 ? NSDecimalNumber(decimal: totalDebt / totalLimit).doubleValue : 0
-
-        let sortedPending = upcomingPayments.filter { $0.status == .pending }.sorted { $0.dueDate < $1.dueDate }
-        let nextCard = sortedPending.first?.card?.name ?? sortedPending.first?.concept
-        let nextDays = sortedPending.first.map {
-            max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0.dueDate).day ?? 0)
-        }
-
-        let snapshot = KASHWidgetSnapshot(
-            totalDebt: totalDebt,
-            realLiquidity: realLiquidity,
-            utilizationRatio: ratio,
-            healthStatus: ratio < 0.30 ? "Óptimo" : (ratio <= 0.50 ? "Alerta" : "Crítico"),
-            nextUpcomingCard: nextCard,
-            nextUpcomingDays: nextDays,
-            activeCardsCount: creditCards.filter { $0.isActive }.count,
-            lastUpdated: Date()
-        )
-        KASHSharedStore.saveSnapshot(snapshot)
-        WidgetCenter.shared.reloadAllTimelines()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 
     private func exportBackup() {
@@ -416,7 +403,9 @@ struct SettingsView: View {
 
     private func loadInitialSettings() {
         let s = ensureSettings()
-        monthlyIncomeString = s.monthlyIncome > 0 ? "\(s.monthlyIncome)" : ""
+        if !isMonthlyIncomeFocused {
+            monthlyIncomeString = s.monthlyIncome > 0 ? "\(s.monthlyIncome)" : ""
+        }
         debtAllocationPercentage = s.debtAllocationPercentage
         paymentReminderDays = s.paymentReminderDaysBefore
         biometricLockMandatory = s.biometricLockMandatory

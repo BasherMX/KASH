@@ -324,4 +324,94 @@ struct KASHFinancialTests {
         #expect(try context.fetchCount(FetchDescriptor<TransactionCategory>()) == 9)
         #expect(try context.fetchCount(FetchDescriptor<UserSettings>()) == 1)
     }
+
+    @Test("Verifica parseo robusto de montos con coma decimal, separadores de miles y símbolos")
+    func testCurrencyInputParserDecimalAndSeparators() {
+        // Coma decimal (teclado español/europeo)
+        #expect(CurrencyInputParser.parseDecimal("25000,50") == Decimal(string: "25000.50"))
+        #expect(CurrencyInputParser.parseDecimal("1250,5") == Decimal(string: "1250.5"))
+
+        // Separadores de miles + punto decimal (formato MX/US)
+        #expect(CurrencyInputParser.parseDecimal("25,000.50") == Decimal(string: "25000.50"))
+        #expect(CurrencyInputParser.parseDecimal("$25,000") == Decimal(25000))
+        #expect(CurrencyInputParser.parseDecimal("MX$ 1,250,000.75") == Decimal(string: "1250000.75"))
+
+        // Separadores de miles con punto + coma decimal (formato EU)
+        #expect(CurrencyInputParser.parseDecimal("25.000,50") == Decimal(string: "25000.50"))
+
+        // Entradas vacías o inválidas devuelven 0
+        #expect(CurrencyInputParser.parseDecimal("") == 0)
+        #expect(CurrencyInputParser.parseDecimal("   ") == 0)
+    }
+
+    @Test("Verifica deduplicación y persistencia garantizada de Ingreso Mensual Neto en UserSettings")
+    @MainActor
+    func testUserSettingsSingletonDeduplicationAndPersistence() throws {
+        let schema = Schema([
+            CreditCard.self,
+            LiquidityAccount.self,
+            TransactionCategory.self,
+            Transaction.self,
+            MonthlyRecord.self,
+            CardMonthlyBalance.self,
+            UpcomingPayment.self,
+            UserSettings.self,
+        ])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+
+        // Simular condición de carrera previa donde existían múltiples filas de UserSettings
+        let row1 = UserSettings(monthlyIncome: 0)
+        let row2 = UserSettings(monthlyIncome: 38500)
+        context.insert(row1)
+        context.insert(row2)
+        try context.save()
+        #expect(try context.fetchCount(FetchDescriptor<UserSettings>()) == 2)
+
+        // UserSettings.shared(in:) debe consolidar las filas duplicadas y conservar el ingreso configurado (> 0)
+        let consolidated = UserSettings.shared(in: context)
+        #expect(consolidated.monthlyIncome == 38500)
+        #expect(try context.fetchCount(FetchDescriptor<UserSettings>()) == 1)
+
+        // Actualizar ingreso mensual y verificar persistencia inmediata
+        UserSettings.updateMonthlyIncome(42750.50, in: context)
+        let reloaded = UserSettings.shared(in: context)
+        #expect(reloaded.monthlyIncome == Decimal(string: "42750.50"))
+        #expect(try context.fetchCount(FetchDescriptor<UserSettings>()) == 1)
+    }
+
+    @Test("Verifica sincronización completa de KASHWidgetSyncService desde SwiftData")
+    @MainActor
+    func testWidgetSyncServiceFromModelContext() throws {
+        let schema = Schema([
+            CreditCard.self,
+            LiquidityAccount.self,
+            TransactionCategory.self,
+            Transaction.self,
+            MonthlyRecord.self,
+            CardMonthlyBalance.self,
+            UpcomingPayment.self,
+            UserSettings.self,
+        ])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+
+        let card = CreditCard(name: "BBVA Azul", institution: "BBVA", creditLimit: 50000, cutoffDay: 10, paymentDueDay: 28)
+        let balance = CardMonthlyBalance(balanceUsed: 12000, recordedAt: Date(), card: card)
+        card.balances = [balance]
+        let account = LiquidityAccount(name: "Cuenta Nómina", institution: "BBVA", availableBalance: 30000, accountType: .debit)
+        context.insert(card)
+        context.insert(balance)
+        context.insert(account)
+        try context.save()
+
+        KASHWidgetSyncService.sync(modelContext: context)
+        let snapshot = KASHSharedStore.loadSnapshot()
+        #expect(snapshot.totalDebt == 12000)
+        #expect(snapshot.realLiquidity == 30000)
+        #expect(snapshot.activeCardsCount == 1)
+        #expect(snapshot.healthStatus == "Óptimo")
+    }
 }

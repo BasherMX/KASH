@@ -21,8 +21,8 @@ struct BatchesHistoryView: View {
         }
     }
 
-    private var recordsGroupedByYear: [(year: Int, records: [MonthlyRecord])] {
-        let grouped = Dictionary(grouping: filteredRecords) { rec in
+    private var allRecordsGroupedByYear: [(year: Int, records: [MonthlyRecord])] {
+        let grouped = Dictionary(grouping: monthlyRecords) { rec in
             Calendar.current.component(.year, from: rec.periodDate)
         }
         return grouped.keys.sorted(by: >).map { year in
@@ -49,80 +49,120 @@ struct BatchesHistoryView: View {
 
                 ScrollView {
                     VStack(spacing: 18) {
-                        // 2. Gráfico de historial (muestra la curva histórica o del filtro)
-                        DebtHistoryChartView(
-                            records: periodFilter.mode == .historical ? monthlyRecords : (filteredRecords.isEmpty ? monthlyRecords : filteredRecords)
-                        )
-                        .padding(.horizontal)
+                        // 2. Gráfico de historial de evolución de deuda
+                        DebtHistoryChartView(records: monthlyRecords)
+                            .padding(.horizontal)
 
-                        // 3. Historial de Cortes agrupado por año y colapsable
+                        // 3. Si está en modo Mes, mostrar tarjeta destacada del mes seleccionado
+                        if periodFilter.mode == .month {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text("Corte de \(periodFilter.periodTitle)")
+                                        .font(.kashTitleMedium)
+                                    Spacer()
+                                    if !monthlyRecords.isEmpty {
+                                        Button {
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                periodFilter.mode = .historical
+                                            }
+                                        } label: {
+                                            Text("Modo Histórico (\(monthlyRecords.count))")
+                                                .font(.kashCaptionBold)
+                                                .foregroundStyle(Color(hex: "#2563EB"))
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+
+                                if filteredRecords.isEmpty {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "calendar.badge.clock")
+                                            .font(.system(size: 26))
+                                            .foregroundStyle(Color(hex: "#2563EB"))
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Sin corte registrado en \(periodFilter.periodTitle)")
+                                                .font(.kashCaptionBold)
+                                            Text("Registra el corte de este periodo para actualizar tus métricas.")
+                                                .font(.kashMicro)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        Button {
+                                            isBatchLogSheetPresented = true
+                                        } label: {
+                                            Text("Registrar")
+                                                .font(.kashCaptionBold)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 7)
+                                                .background(Color(hex: "#2563EB"), in: Capsule())
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                                    .padding(16)
+                                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                                    .padding(.horizontal)
+                                } else {
+                                    VStack(spacing: 10) {
+                                        ForEach(filteredRecords) { record in
+                                            let prev = chronologicalPreviousRecord(for: record)
+                                            MonthlyRecordCard(
+                                                record: record,
+                                                previousRecord: prev,
+                                                onEdit: {
+                                                    recordToEdit = record
+                                                },
+                                                onDelete: {
+                                                    recordToDelete = record
+                                                    isShowingDeleteConfirmation = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+
+                        // 4. Historial de Cortes agrupado por año y colapsable (Año actual descolapsado por defecto)
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
-                                Text(periodFilter.mode == .month ? "Corte de \(periodFilter.periodTitle)" : "Historial de Cortes por Año")
+                                Text("Historial de Cortes por Año")
                                     .font(.kashTitleMedium)
                                 Spacer()
-                                if periodFilter.mode == .month && !monthlyRecords.isEmpty {
-                                    Button {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            periodFilter.mode = .historical
-                                        }
-                                    } label: {
-                                        Text("Ver Todos (\(monthlyRecords.count))")
-                                            .font(.kashCaptionBold)
-                                            .foregroundStyle(Color(hex: "#2563EB"))
-                                    }
+                                if !monthlyRecords.isEmpty {
+                                    Text("\(monthlyRecords.count) \(monthlyRecords.count == 1 ? "corte" : "cortes")")
+                                        .font(.kashCaption)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                             .padding(.horizontal)
 
-                            if filteredRecords.isEmpty {
+                            if monthlyRecords.isEmpty {
                                 VStack(spacing: 14) {
                                     Image(systemName: "calendar.badge.clock")
                                         .font(.system(size: 40))
                                         .foregroundStyle(.secondary)
-                                    Text(
-                                        periodFilter.mode == .month
-                                            ? "Sin corte registrado en \(periodFilter.periodTitle)"
-                                            : "Aún no tienes cortes mensuales registrados"
-                                    )
-                                    .font(.kashBodyBold)
-                                    .multilineTextAlignment(.center)
+                                    Text("Aún no tienes cortes mensuales registrados")
+                                        .font(.kashBodyBold)
+                                        .multilineTextAlignment(.center)
 
-                                    Text(
-                                        periodFilter.mode == .month
-                                            ? "Puedes registrar el corte de este mes o cambiar a la vista Histórica para ver cortes anteriores agrupados por año."
-                                            : "Registra tu primer corte con el botón superior para calcular deltas y gráficas de amortización."
-                                    )
-                                    .font(.kashCaption)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
+                                    Text("Registra tu primer corte con el botón superior para calcular deltas y gráficas de amortización.")
+                                        .font(.kashCaption)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.center)
 
-                                    HStack(spacing: 10) {
-                                        Button {
-                                            isBatchLogSheetPresented = true
-                                        } label: {
-                                            Label("Registrar Corte", systemImage: "plus.circle.fill")
-                                                .font(.kashCaptionBold)
-                                                .padding(.horizontal, 14)
-                                                .padding(.vertical, 8)
-                                                .background(Color(hex: "#2563EB"), in: Capsule())
-                                                .foregroundStyle(.white)
-                                        }
-
-                                        if periodFilter.mode == .month && !monthlyRecords.isEmpty {
-                                            Button {
-                                                withAnimation(.easeInOut(duration: 0.2)) {
-                                                    periodFilter.mode = .historical
-                                                }
-                                            } label: {
-                                                Label("Ver Histórico (\(monthlyRecords.count))", systemImage: "clock.arrow.circlepath")
-                                                    .font(.kashCaptionBold)
-                                                    .padding(.horizontal, 14)
-                                                    .padding(.vertical, 8)
-                                                    .background(Color(hex: "#2563EB").opacity(0.12), in: Capsule())
-                                                    .foregroundStyle(Color(hex: "#2563EB"))
-                                            }
-                                        }
+                                    Button {
+                                        isBatchLogSheetPresented = true
+                                    } label: {
+                                        Label("Registrar Corte", systemImage: "plus.circle.fill")
+                                            .font(.kashCaptionBold)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 8)
+                                            .background(Color(hex: "#2563EB"), in: Capsule())
+                                            .foregroundStyle(.white)
                                     }
                                     .padding(.top, 4)
                                 }
@@ -132,7 +172,7 @@ struct BatchesHistoryView: View {
                                 .padding(.horizontal)
                             } else {
                                 LazyVStack(spacing: 14) {
-                                    ForEach(recordsGroupedByYear, id: \.year) { group in
+                                    ForEach(allRecordsGroupedByYear, id: \.year) { group in
                                         let isYearExpanded = expandedYears.contains(group.year)
                                         VStack(spacing: 10) {
                                             // Cabecera de Año colapsable (Año actual descolapsado por defecto)
@@ -262,7 +302,7 @@ struct BatchesHistoryView: View {
     private func deleteRecord(_ record: MonthlyRecord) {
         modelContext.delete(record)
         try? modelContext.save()
-        WidgetCenter.shared.reloadAllTimelines()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
         recordToDelete = nil
     }
 }

@@ -64,6 +64,7 @@ struct LiquidityAccountsListView: View {
             modelContext.delete(item)
         }
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 }
 
@@ -228,7 +229,7 @@ struct LiquidityAccountEditSheet: View {
     }
 
     private func saveAccount() {
-        let cleanBalance = Decimal(string: balanceString.replacingOccurrences(of: ",", with: "")) ?? 0
+        let cleanBalance = CurrencyInputParser.parseDecimal(balanceString)
 
         if let acc = accountToEdit {
             acc.name = name
@@ -251,6 +252,7 @@ struct LiquidityAccountEditSheet: View {
         }
 
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
         dismiss()
     }
 }

@@ -368,14 +368,14 @@ struct OnboardingView: View {
     }
 
     private func completeOnboarding() {
-        let salary = Decimal(string: initialSalaryString.replacingOccurrences(of: ",", with: "")) ?? 0
-        let cardLimit = Decimal(string: initialCardLimitString.replacingOccurrences(of: ",", with: "")) ?? 0
-        let debitBalance = Decimal(string: initialDebitBalanceString.replacingOccurrences(of: ",", with: "")) ?? 0
+        let salary = CurrencyInputParser.parseDecimal(initialSalaryString)
+        let cardLimit = CurrencyInputParser.parseDecimal(initialCardLimitString)
+        let debitBalance = CurrencyInputParser.parseDecimal(initialDebitBalanceString)
 
-        let settingsDescriptor = FetchDescriptor<UserSettings>()
-        let settings = (try? modelContext.fetch(settingsDescriptor))?.first ?? UserSettings()
         if salary > 0 {
-            settings.monthlyIncome = salary
+            UserSettings.updateMonthlyIncome(salary, in: modelContext)
+        } else {
+            _ = UserSettings.shared(in: modelContext)
         }
 
         if !initialCardName.isEmpty && cardLimit > 0 {
@@ -402,6 +402,7 @@ struct OnboardingView: View {
         }
 
         try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         dismiss()
     }
