@@ -48,6 +48,7 @@ final class AppState: ObservableObject {
 
 // MARK: - RootView
 struct RootView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var appState: AppState
     @ObservedObject var authManager = BiometricAuthManager.shared
     @Environment(\.scenePhase) private var scenePhase
