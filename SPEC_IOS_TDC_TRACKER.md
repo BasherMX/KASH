@@ -887,7 +887,33 @@ graph TD
   - Versión elevada a `1.5.0 (Build 7)` en `project.yml`, `Info.plist`, `KASHWidgets/Info.plist`, `build.yml` y `SettingsView.swift`.
   - Cobertura de pruebas ampliada en `Tests/KASHTests/KASHFinancialTests.swift` cubriendo rechazo de saldo cero, frecuencia de préstamos y métricas de hábitos de compra.
 
+### 🔹 Fase 14: Actualización v1.6.0 (Build 8) — Widget Interactivo de Flujo Mensual (Mes, Gastos e Ingresos), Datos 100% Reales en Widgets, Gráfica de Línea de Tendencias, Reordenamiento de Secciones Analíticas y Reordenamiento Fluido de Cuentas de Liquidez
+- **Nuevo Widget Interactivo de Flujo Mensual (`KASHMonthlyFlowWidget`):**
+  - Incorporación a `KASHWidgetsBundle` con soporte para `.systemSmall`, `.systemMedium` y `.systemLarge`.
+  - En `.systemMedium` (4x2):
+    - Encabezado con el nombre del **MES actual en mayúsculas en español** (ej. `OCTUBRE`) e indicador de salud de finanzas del mes.
+    - Fila integrada: `GASTOS` con monto real en rojo (`$XX,XXX.XX`) | separador vertical | `INGRESOS` con monto real en verde (`$XX,XXX.XX`).
+    - Botones interactivos con `AppIntents` (`QuickExpenseIntent`, `QuickIncomeIntent`, `PayCardIntent`): `+ Gasto`, `+ Ingreso` y `Pagar` con enlaces directos a la app.
+- **Datos 100% Reales en Todos los Widgets (Erradicación Total de Datos Simulados):**
+  - Eliminación del fallback a datos simulados (`.sample` hardcodeados) en `loadSnapshot()`, `placeholder` y `getSnapshot()`. Todos los widgets muestran únicamente datos reales calculados directamente desde SwiftData.
+  - Sincronización continua de gastos del mes, ingresos del mes, deuda total y liquidez en `KASHWidgetSyncService.sync(modelContext:)` tras cada cambio en la app y al entrar o salir del primer plano en `RootView`.
+- **Gráfica de Líneas para Tendencias de Compra (`PurchaseTrendsAnalyticsView`):**
+  - Reemplazo de las barras por `LineMark` + `AreaMark` (degradado suave) + `PointMark` con interpolación monotónica continua y tooltips de inspección estables, homogeneizando el diseño con el resto de gráficas de KASH.
+- **Jerarquía Reordenada en la Pestaña Análisis (`AnalyticsView`):**
+  - 1. Gastos por Categoría (`CategoryExpensesDonutChart`).
+  - 2. Tendencia de Compra y Hábitos (`PurchaseTrendsAnalyticsView`).
+  - 3. Velocidad de Endeudamiento (`BurnRateIndicatorView`).
+  - 4. Concentración de Riesgo / Deuda (`DebtConcentrationView`).
+  - 5. Proyección de Deuda Cero (`ZeroDebtEstimatorView`).
+- **Reordenamiento Fluido de Tarjetas y Cuentas de Dinero Real (`DashboardView`):**
+  - Incorporación de `displayOrder` a `LiquidityAccount` con persistencia en SwiftData y respaldos JSON.
+  - Soporte de reordenamiento mediante pulsación sostenida y arrastre (`.onDrag` / `.onDrop`) tanto en **Tus Tarjetas de Crédito** como en **Tus Cuentas de Dinero Real**.
+  - Erradicación del estado "seleccionado" / semi-transparente pegado al soltar la tarjeta mediante captura global de drop en el contenedor y temporizador de seguridad de deselección.
+- **Incremento de Versión y Pruebas:**
+  - Actualizado a `1.6.0 (Build 8)` en `project.yml`, `Info.plist`, `KASHWidgets/Info.plist`, `build.yml` y `SettingsView.swift`.
+  - Pruebas unitarias añadidas en `KASHFinancialTests.swift` validando datos de snapshot para widgets y reordenamiento de cuentas.
+
 ---
 
-*(Fin del documento maestro de especificación v2.7.0)*
+*(Fin del documento maestro de especificación v2.8.0)*
 

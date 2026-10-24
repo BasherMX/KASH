@@ -12,6 +12,35 @@ enum KASHWidgetSyncService {
         let cards = (try? modelContext.fetch(FetchDescriptor<CreditCard>())) ?? []
         let accounts = (try? modelContext.fetch(FetchDescriptor<LiquidityAccount>())) ?? []
         let payments = (try? modelContext.fetch(FetchDescriptor<UpcomingPayment>())) ?? []
+        let transactions = (try? modelContext.fetch(FetchDescriptor<Transaction>())) ?? []
+        let settingsList = (try? modelContext.fetch(FetchDescriptor<UserSettings>())) ?? []
+
+        let now = Date()
+        let cal = Calendar.current
+        let currentYear = cal.component(.year, from: now)
+        let currentMonth = cal.component(.month, from: now)
+
+        let monthFormatter = DateFormatter()
+        monthFormatter.locale = Locale(identifier: "es_MX")
+        monthFormatter.dateFormat = "LLLL"
+        let monthName = monthFormatter.string(from: now).uppercased()
+
+        // Gastos reales del mes en curso
+        let currentMonthExpenses = transactions.filter { tx in
+            tx.type == .expense &&
+            cal.component(.year, from: tx.transactionDate) == currentYear &&
+            cal.component(.month, from: tx.transactionDate) == currentMonth
+        }.reduce(Decimal(0)) { $0 + $1.amount }
+
+        // Ingresos del mes (transacciones directas de ingreso o sueldo base configurado)
+        let txIncomes = transactions.filter { tx in
+            tx.type == .income &&
+            cal.component(.year, from: tx.transactionDate) == currentYear &&
+            cal.component(.month, from: tx.transactionDate) == currentMonth
+        }.reduce(Decimal(0)) { $0 + $1.amount }
+
+        let baseSalary = settingsList.first?.monthlyIncome ?? 0
+        let currentMonthIncome = txIncomes > 0 ? txIncomes : baseSalary
 
         let activeCards = cards.filter { $0.isActive }
         let cardDebt = activeCards.reduce(Decimal(0)) { $0 + $1.currentBalance }
@@ -30,10 +59,13 @@ enum KASHWidgetSyncService {
             .sorted { $0.dueDate < $1.dueDate }
         let nextCard = sortedPending.first?.card?.name ?? sortedPending.first?.concept
         let nextDays = sortedPending.first.map {
-            max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0.dueDate).day ?? 0)
+            max(0, Calendar.current.dateComponents([.day], from: now, to: $0.dueDate).day ?? 0)
         }
 
         let snapshot = KASHWidgetSnapshot(
+            currentMonthName: monthName,
+            currentMonthExpenses: currentMonthExpenses,
+            currentMonthIncome: currentMonthIncome,
             totalDebt: totalDebt,
             realLiquidity: realLiquidity,
             utilizationRatio: ratio,
@@ -41,7 +73,7 @@ enum KASHWidgetSyncService {
             nextUpcomingCard: nextCard,
             nextUpcomingDays: nextDays,
             activeCardsCount: activeCards.count,
-            lastUpdated: Date()
+            lastUpdated: now
         )
         KASHSharedStore.saveSnapshot(snapshot)
         WidgetCenter.shared.reloadAllTimelines()

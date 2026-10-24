@@ -68,6 +68,7 @@ struct LiquidityAccountDTO: Codable {
     let colorHex: String
     let iconName: String
     let isActive: Bool
+    let displayOrder: Int?
     let updatedAt: String
     let totalInstallments: Int?
     let paidInstallments: Int?

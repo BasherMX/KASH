@@ -10,7 +10,7 @@ struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var appState: AppState
     @Query(sort: \CreditCard.displayOrder) private var creditCards: [CreditCard]
-    @Query private var liquidityAccounts: [LiquidityAccount]
+    @Query(sort: \LiquidityAccount.displayOrder) private var liquidityAccounts: [LiquidityAccount]
     @Query private var upcomingPayments: [UpcomingPayment]
     @Query private var monthlyRecords: [MonthlyRecord]
 
@@ -539,17 +539,24 @@ struct CreditCardsSnapshotCard: View {
                                 CreditCardDetailView(card: card)
                             } label: {
                                 CreditCardMiniCard(card: card)
-                                    .opacity(draggingCard?.id == card.id ? 0.4 : 1.0)
+                                    .opacity(draggingCard?.id == card.id ? 0.6 : 1.0)
                                     .scaleEffect(draggingCard?.id == card.id ? 1.02 : 1.0)
                             }
                             .buttonStyle(.plain)
                             .onDrag {
                                 self.draggingCard = card
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                    if self.draggingCard?.id == card.id {
+                                        withAnimation(.snappy(duration: 0.2)) {
+                                            self.draggingCard = nil
+                                        }
+                                    }
+                                }
                                 return NSItemProvider(object: card.id.uuidString as NSString)
                             }
                             .onDrop(
                                 of: [.text],
-                                delegate: CardDropDelegate(
+                                delegate: ItemDropDelegate(
                                     item: card,
                                     items: $orderedCards,
                                     draggingItem: $draggingCard,
@@ -560,6 +567,13 @@ struct CreditCardsSnapshotCard: View {
                     }
                     .padding(.vertical, 4)
                     .padding(.horizontal, 2)
+                }
+                .onDrop(of: [.text], isTargeted: nil) { _ in
+                    withAnimation(.snappy(duration: 0.2)) {
+                        self.draggingCard = nil
+                    }
+                    saveOrder()
+                    return true
                 }
             }
         }
@@ -574,19 +588,19 @@ struct CreditCardsSnapshotCard: View {
     }
 }
 
-// MARK: - CardDropDelegate
-private struct CardDropDelegate: DropDelegate {
-    let item: CreditCard
-    @Binding var items: [CreditCard]
-    @Binding var draggingItem: CreditCard?
+// MARK: - ItemDropDelegate (Reordenamiento Genérico Suave y Seguro)
+private struct ItemDropDelegate<T: Identifiable>: DropDelegate {
+    let item: T
+    @Binding var items: [T]
+    @Binding var draggingItem: T?
     let onCommit: () -> Void
 
     func dropEntered(info: DropInfo) {
-        guard let dragging = draggingItem, dragging.id != item.id else { return }
-        guard let fromIndex = items.firstIndex(where: { $0.id == dragging.id }),
-              let toIndex = items.firstIndex(where: { $0.id == item.id }) else { return }
+        guard let dragging = draggingItem, String(describing: dragging.id) != String(describing: item.id) else { return }
+        guard let fromIndex = items.firstIndex(where: { String(describing: $0.id) == String(describing: dragging.id) }),
+              let toIndex = items.firstIndex(where: { String(describing: $0.id) == String(describing: item.id) }) else { return }
 
-        if items[toIndex].id != dragging.id {
+        if String(describing: items[toIndex].id) != String(describing: dragging.id) {
             withAnimation(.snappy(duration: 0.2)) {
                 items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
             }
@@ -598,15 +612,37 @@ private struct CardDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        draggingItem = nil
+        withAnimation(.snappy(duration: 0.2)) {
+            draggingItem = nil
+        }
         onCommit()
         return true
+    }
+
+    func dropExited(info: DropInfo) {
+        // Al salir del área de arrastre sin soltar
     }
 }
 
 // MARK: - LiquidityAccountsSnapshotCard
 struct LiquidityAccountsSnapshotCard: View {
+    @Environment(\.modelContext) private var modelContext
     let accounts: [LiquidityAccount]
+
+    @State private var orderedAccounts: [LiquidityAccount] = []
+    @State private var draggingAccount: LiquidityAccount? = nil
+
+    private func syncAccounts() {
+        orderedAccounts = accounts.filter { $0.isActive }.sorted { $0.displayOrder < $1.displayOrder }
+    }
+
+    private func saveOrder() {
+        for (idx, account) in orderedAccounts.enumerated() {
+            account.displayOrder = idx
+        }
+        try? modelContext.save()
+        KASHWidgetSyncService.sync(modelContext: modelContext)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -614,14 +650,14 @@ struct LiquidityAccountsSnapshotCard: View {
                 Text("Tus Cuentas de Dinero Real")
                     .font(.kashBodyBold)
                 Spacer()
-                if !accounts.isEmpty {
-                    Text("\(accounts.filter { $0.isActive }.count) activas")
+                if !orderedAccounts.isEmpty {
+                    Text("\(orderedAccounts.count) activas")
                         .font(.kashMicro)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            if accounts.isEmpty {
+            if orderedAccounts.isEmpty {
                 Text("No tienes cuentas de liquidez registradas.")
                     .font(.kashCaption)
                     .foregroundStyle(.secondary)
@@ -630,22 +666,57 @@ struct LiquidityAccountsSnapshotCard: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(accounts.filter { $0.isActive }) { account in
+                        ForEach(orderedAccounts) { account in
                             NavigationLink {
                                 LiquidityAccountDetailView(account: account)
                             } label: {
                                 LiquidityAccountMiniCard(account: account)
+                                    .opacity(draggingAccount?.id == account.id ? 0.6 : 1.0)
+                                    .scaleEffect(draggingAccount?.id == account.id ? 1.02 : 1.0)
                             }
                             .buttonStyle(.plain)
+                            .onDrag {
+                                self.draggingAccount = account
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                    if self.draggingAccount?.id == account.id {
+                                        withAnimation(.snappy(duration: 0.2)) {
+                                            self.draggingAccount = nil
+                                        }
+                                    }
+                                }
+                                return NSItemProvider(object: account.id.uuidString as NSString)
+                            }
+                            .onDrop(
+                                of: [.text],
+                                delegate: ItemDropDelegate(
+                                    item: account,
+                                    items: $orderedAccounts,
+                                    draggingItem: $draggingAccount,
+                                    onCommit: saveOrder
+                                )
+                            )
                         }
                     }
                     .padding(.vertical, 6)
                     .padding(.horizontal, 2)
                 }
+                .onDrop(of: [.text], isTargeted: nil) { _ in
+                    withAnimation(.snappy(duration: 0.2)) {
+                        self.draggingAccount = nil
+                    }
+                    saveOrder()
+                    return true
+                }
             }
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .onAppear {
+            syncAccounts()
+        }
+        .onChange(of: accounts) { _, _ in
+            syncAccounts()
+        }
     }
 }
 

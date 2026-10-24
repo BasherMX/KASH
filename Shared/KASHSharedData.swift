@@ -60,6 +60,9 @@ public enum KASHWidgetAction: String, Codable, Sendable {
 // MARK: - KASHWidgetSnapshot
 /// Estructura de datos compartida entre KASH y KASHWidgets
 public struct KASHWidgetSnapshot: Codable, Sendable, Equatable {
+    public var currentMonthName: String
+    public var currentMonthExpenses: Decimal
+    public var currentMonthIncome: Decimal
     public var totalDebt: Decimal
     public var realLiquidity: Decimal
     public var utilizationRatio: Double
@@ -70,15 +73,28 @@ public struct KASHWidgetSnapshot: Codable, Sendable, Equatable {
     public var lastUpdated: Date
 
     public init(
-        totalDebt: Decimal,
+        currentMonthName: String = "",
+        currentMonthExpenses: Decimal = 0,
+        currentMonthIncome: Decimal = 0,
+        totalDebt: Decimal = 0,
         realLiquidity: Decimal = 0,
-        utilizationRatio: Double,
-        healthStatus: String,
+        utilizationRatio: Double = 0,
+        healthStatus: String = "Al día",
         nextUpcomingCard: String? = nil,
         nextUpcomingDays: Int? = nil,
         activeCardsCount: Int = 0,
         lastUpdated: Date = Date()
     ) {
+        if currentMonthName.isEmpty {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "es_MX")
+            formatter.dateFormat = "LLLL"
+            self.currentMonthName = formatter.string(from: lastUpdated).uppercased()
+        } else {
+            self.currentMonthName = currentMonthName
+        }
+        self.currentMonthExpenses = currentMonthExpenses
+        self.currentMonthIncome = currentMonthIncome
         self.totalDebt = totalDebt
         self.realLiquidity = realLiquidity
         self.utilizationRatio = utilizationRatio
@@ -91,32 +107,59 @@ public struct KASHWidgetSnapshot: Codable, Sendable, Equatable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let lastUpdatedDate = try container.decodeIfPresent(Date.self, forKey: .lastUpdated) ?? Date()
+        self.lastUpdated = lastUpdatedDate
+
+        if let month = try container.decodeIfPresent(String.self, forKey: .currentMonthName), !month.isEmpty {
+            self.currentMonthName = month
+        } else {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "es_MX")
+            formatter.dateFormat = "LLLL"
+            self.currentMonthName = formatter.string(from: lastUpdatedDate).uppercased()
+        }
+
+        self.currentMonthExpenses = try container.decodeIfPresent(Decimal.self, forKey: .currentMonthExpenses) ?? 0
+        self.currentMonthIncome = try container.decodeIfPresent(Decimal.self, forKey: .currentMonthIncome) ?? 0
         self.totalDebt = try container.decodeIfPresent(Decimal.self, forKey: .totalDebt) ?? 0
         self.realLiquidity = try container.decodeIfPresent(Decimal.self, forKey: .realLiquidity) ?? 0
         self.utilizationRatio = try container.decodeIfPresent(Double.self, forKey: .utilizationRatio) ?? 0
-        self.healthStatus = try container.decodeIfPresent(String.self, forKey: .healthStatus) ?? "Óptimo"
+        self.healthStatus = try container.decodeIfPresent(String.self, forKey: .healthStatus) ?? "Al día"
         self.nextUpcomingCard = try container.decodeIfPresent(String.self, forKey: .nextUpcomingCard)
         self.nextUpcomingDays = try container.decodeIfPresent(Int.self, forKey: .nextUpcomingDays)
         self.activeCardsCount = try container.decodeIfPresent(Int.self, forKey: .activeCardsCount) ?? 0
-        self.lastUpdated = try container.decodeIfPresent(Date.self, forKey: .lastUpdated) ?? Date()
     }
 
-    public static let sample = KASHWidgetSnapshot(
-        totalDebt: 39375.71,
-        realLiquidity: 18450.00,
-        utilizationRatio: 0.274,
-        healthStatus: "Óptimo",
-        nextUpcomingCard: "HEY BANCO",
-        nextUpcomingDays: 3,
-        activeCardsCount: 3,
-        lastUpdated: Date()
-    )
+    public static var empty: KASHWidgetSnapshot {
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "es_MX")
+        formatter.dateFormat = "LLLL"
+        let monthName = formatter.string(from: now).uppercased()
+
+        return KASHWidgetSnapshot(
+            currentMonthName: monthName,
+            currentMonthExpenses: 0,
+            currentMonthIncome: 0,
+            totalDebt: 0,
+            realLiquidity: 0,
+            utilizationRatio: 0,
+            healthStatus: "Al día",
+            nextUpcomingCard: nil,
+            nextUpcomingDays: nil,
+            activeCardsCount: 0,
+            lastUpdated: now
+        )
+    }
+
+    public static let sample = empty
 }
 
 // MARK: - KASHSharedStore
 /// Administrador del almacenamiento compartido para Widgets (App Group dinámico + Archivo en Contenedor + UserDefaults)
 public enum KASHSharedStore {
     public static let appGroupId = "group.com.kash.app"
+    public static let monthlyFlowWidgetKind = "KASHMonthlyFlowWidget"
     public static let mainWidgetKind = "KASHWidget"
     public static let upcomingWidgetKind = "KASHUpcomingPaymentsWidget"
     public static let lockScreenWidgetKind = "KASHLockScreenWidget"
@@ -250,7 +293,7 @@ public enum KASHSharedStore {
             return snapshot
         }
 
-        return .sample
+        return .empty
     }
 
     public static func setPendingAction(_ action: KASHWidgetAction) {

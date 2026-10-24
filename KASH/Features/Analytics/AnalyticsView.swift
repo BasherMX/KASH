@@ -50,17 +50,17 @@ struct AnalyticsView: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        // 1. Tendencias de Compra, Hábitos y Predicción de Gastos
+                        // 1. Donut Chart de Gastos por Categoría (filtrado por mes o histórico)
+                        CategoryExpensesDonutChart(
+                            transactions: filteredTransactions,
+                            periodTitle: periodFilter.periodTitle
+                        )
+
+                        // 2. Tendencias de Compra, Hábitos y Predicción de Gastos
                         PurchaseTrendsAnalyticsView(
                             transactions: filteredTransactions,
                             creditCards: creditCards,
                             liquidityAccounts: liquidityAccounts,
-                            periodTitle: periodFilter.periodTitle
-                        )
-
-                        // 2. Donut Chart de Gastos por Categoría (filtrado por mes o histórico)
-                        CategoryExpensesDonutChart(
-                            transactions: filteredTransactions,
                             periodTitle: periodFilter.periodTitle
                         )
 
@@ -71,7 +71,7 @@ struct AnalyticsView: View {
                             periodTitle: periodFilter.periodTitle
                         )
 
-                        // 4. Detector de Concentración de Deuda & Avalancha
+                        // 4. Detector de Concentración de Deuda / Riesgo
                         DebtConcentrationView(cards: creditCards)
 
                         // 5. Proyección Deuda Cero ($0.00)

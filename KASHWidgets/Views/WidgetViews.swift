@@ -421,3 +421,355 @@ struct KASHAccessoryInlineWidgetView: View {
             .containerBackground(for: .widget) { }
     }
 }
+
+// MARK: - KASHMonthlyFlowMediumWidgetView (systemMedium 4x2 - Mes, Gastos | Ingresos, Botones)
+struct KASHMonthlyFlowMediumWidgetView: View {
+    let entry: KASHWidgetEntry
+
+    var body: some View {
+        VStack(spacing: 10) {
+            // Fila Superior: MES en mayúsculas (ej. OCTUBRE)
+            HStack(alignment: .center) {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color(hex: "#2563EB"))
+                        .widgetAccentable()
+
+                    Text(entry.currentMonthName.uppercased())
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .tracking(1.0)
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(entry.currentMonthIncome >= entry.currentMonthExpenses ? Color(hex: "#10B981") : Color(hex: "#EF4444"))
+                        .frame(width: 6, height: 6)
+
+                    Text(entry.currentMonthIncome >= entry.currentMonthExpenses ? "Finanzas Sanas" : "Alerta de Gasto")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // Fila Central: GASTOS | INGRESOS en una misma fila
+            HStack(spacing: 0) {
+                // GASTOS
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Circle().fill(Color(hex: "#EF4444")).frame(width: 5, height: 5)
+                        Text("GASTOS")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .tracking(0.5)
+                    }
+
+                    Text(entry.currentMonthExpenses.formatted(.currency(code: "MXN")))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .widgetAccentable()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Separador vertical "|"
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color.secondary.opacity(0.25))
+                    .frame(width: 1.5, height: 28)
+                    .padding(.horizontal, 10)
+
+                // INGRESOS
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Circle().fill(Color(hex: "#10B981")).frame(width: 5, height: 5)
+                        Text("INGRESOS")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .tracking(0.5)
+                    }
+
+                    Text(entry.currentMonthIncome.formatted(.currency(code: "MXN")))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: "#10B981"))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .widgetAccentable()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 4)
+
+            Divider()
+
+            // Fila Inferior: + Gasto | + Ingreso | Pagar
+            HStack(spacing: 8) {
+                Button(intent: QuickExpenseIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Gasto")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(Color(hex: "#EF4444").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#EF4444"))
+                }
+                .buttonStyle(.plain)
+
+                Button(intent: QuickIncomeIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Ingreso")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(Color(hex: "#10B981").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#10B981"))
+                }
+                .buttonStyle(.plain)
+
+                Button(intent: PayCardIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "creditcard")
+                        Text("Pagar")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(Color(hex: "#2563EB").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#2563EB"))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .widgetURL(URL(string: "kash://dashboard"))
+        .containerBackground(for: .widget) {
+            Color(uiColor: .secondarySystemBackground)
+        }
+    }
+}
+
+// MARK: - KASHMonthlyFlowSmallWidgetView (systemSmall 2x2)
+struct KASHMonthlyFlowSmallWidgetView: View {
+    let entry: KASHWidgetEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(entry.currentMonthName.uppercased())
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .tracking(0.5)
+                    .foregroundStyle(Color(hex: "#2563EB"))
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("GASTOS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Text(entry.currentMonthExpenses.formatted(.currency(code: "MXN")))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(hex: "#EF4444"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("INGRESOS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Text(entry.currentMonthIncome.formatted(.currency(code: "MXN")))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(hex: "#10B981"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            Spacer()
+
+            HStack(spacing: 4) {
+                Button(intent: QuickExpenseIntent()) {
+                    Text("+ Gasto")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "#EF4444").opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                }
+                .buttonStyle(.plain)
+
+                Button(intent: QuickIncomeIntent()) {
+                    Text("+ Ingreso")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "#10B981").opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .foregroundStyle(Color(hex: "#10B981"))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .widgetURL(URL(string: "kash://dashboard"))
+        .containerBackground(for: .widget) {
+            Color(uiColor: .secondarySystemBackground)
+        }
+    }
+}
+
+// MARK: - KASHMonthlyFlowLargeWidgetView (systemLarge 4x4)
+struct KASHMonthlyFlowLargeWidgetView: View {
+    let entry: KASHWidgetEntry
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // Header
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(Color(hex: "#2563EB"))
+                    Text(entry.currentMonthName.uppercased())
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .tracking(0.5)
+                }
+                Spacer()
+                Text(entry.currentMonthIncome >= entry.currentMonthExpenses ? "🟢 Finanzas Sanas" : "🔴 Alerta")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+
+            // GASTOS | INGRESOS
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("GASTOS DEL MES")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Text(entry.currentMonthExpenses.formatted(.currency(code: "MXN")))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Color.secondary.opacity(0.25))
+                    .frame(width: 1.5, height: 32)
+                    .padding(.horizontal, 10)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("INGRESOS DEL MES")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Text(entry.currentMonthIncome.formatted(.currency(code: "MXN")))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: "#10B981"))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 4)
+
+            Divider()
+
+            // Balance neto
+            let net = entry.currentMonthIncome - entry.currentMonthExpenses
+            HStack {
+                Text("Balance Neto Estimado:")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text((net >= 0 ? "+" : "") + net.formatted(.currency(code: "MXN")))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(net >= 0 ? Color(hex: "#10B981") : Color(hex: "#EF4444"))
+            }
+
+            // Deuda y Liquidez
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Deuda Total")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Text(entry.totalDebt.formatted(.currency(code: "MXN")))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Liquidez Real")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Text(entry.realLiquidity.formatted(.currency(code: "MXN")))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: "#10B981"))
+                }
+            }
+
+            Spacer()
+
+            // Botones
+            HStack(spacing: 8) {
+                Button(intent: QuickExpenseIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Gasto")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(Color(hex: "#EF4444").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#EF4444"))
+                }
+                .buttonStyle(.plain)
+
+                Button(intent: QuickIncomeIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Ingreso")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(Color(hex: "#10B981").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#10B981"))
+                }
+                .buttonStyle(.plain)
+
+                Button(intent: PayCardIntent()) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "creditcard")
+                        Text("Pagar")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(Color(hex: "#2563EB").opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Color(hex: "#2563EB"))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .widgetURL(URL(string: "kash://dashboard"))
+        .containerBackground(for: .widget) {
+            Color(uiColor: .secondarySystemBackground)
+        }
+    }
+}
+
+// MARK: - KASHMonthlyFlowWidgetEntryView
+struct KASHMonthlyFlowWidgetEntryView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: KASHWidgetEntry
+
+    var body: some View {
+        switch family {
+        case .systemSmall:
+            KASHMonthlyFlowSmallWidgetView(entry: entry)
+        case .systemMedium:
+            KASHMonthlyFlowMediumWidgetView(entry: entry)
+        case .systemLarge:
+            KASHMonthlyFlowLargeWidgetView(entry: entry)
+        default:
+            KASHMonthlyFlowMediumWidgetView(entry: entry)
+        }
+    }
+}

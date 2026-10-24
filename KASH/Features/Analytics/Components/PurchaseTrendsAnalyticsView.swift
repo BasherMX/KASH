@@ -263,12 +263,32 @@ struct PurchaseTrendsAnalyticsView: View {
                 } else {
                     Chart {
                         ForEach(dailySpendings) { item in
-                            BarMark(
+                            AreaMark(
                                 x: .value("Fecha", item.date, unit: .day),
                                 y: .value("Gasto", item.totalAmount)
                             )
-                            .foregroundStyle(Color(hex: "#2563EB").gradient)
-                            .cornerRadius(4)
+                            .interpolationMethod(.monotone)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color(hex: "#2563EB").opacity(0.3), Color(hex: "#2563EB").opacity(0.02)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+
+                            LineMark(
+                                x: .value("Fecha", item.date, unit: .day),
+                                y: .value("Gasto", item.totalAmount)
+                            )
+                            .interpolationMethod(.monotone)
+                            .foregroundStyle(Color(hex: "#2563EB"))
+                            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+
+                            PointMark(
+                                x: .value("Fecha", item.date, unit: .day),
+                                y: .value("Gasto", item.totalAmount)
+                            )
+                            .foregroundStyle(Color(hex: "#2563EB"))
                         }
 
                         if let sel = selectedDailyItem {

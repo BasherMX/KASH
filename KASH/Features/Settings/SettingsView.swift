@@ -290,7 +290,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Control TDC • KASH v1.5.0 (Build 7)")
+                        Text("Control TDC • KASH v1.6.0 (Build 8)")
                             .font(.kashMicro)
                             .foregroundStyle(.tertiary)
 

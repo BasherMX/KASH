@@ -179,7 +179,7 @@ struct RootView: View {
                 triggerInitialBiometricAuth()
             }
             processPendingWidgetAction()
-            WidgetCenter.shared.reloadAllTimelines()
+            KASHWidgetSyncService.sync(modelContext: modelContext)
         case .inactive:
             // Activar desenfoque inmediato en el App Switcher SOLO si el bloqueo biométrico está activo
             if isBiometricMandatory {
@@ -190,7 +190,7 @@ struct RootView: View {
                 appState.isPrivacyBlurred = true
                 authManager.lockApp()
             }
-            WidgetCenter.shared.reloadAllTimelines()
+            KASHWidgetSyncService.sync(modelContext: modelContext)
         @unknown default:
             break
         }

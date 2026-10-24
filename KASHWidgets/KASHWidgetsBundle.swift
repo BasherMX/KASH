@@ -1,7 +1,21 @@
 import WidgetKit
 import SwiftUI
 
-// MARK: - 1. KASHWidget (Resumen, Liquidez y Acciones Rápidas)
+// MARK: - 1. KASHMonthlyFlowWidget (Flujo Mensual: Mes, Gastos | Ingresos y Acciones)
+struct KASHMonthlyFlowWidget: Widget {
+    let kind: String = KASHSharedStore.monthlyFlowWidgetKind
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: KASHWidgetTimelineProvider()) { entry in
+            KASHMonthlyFlowWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("KASH Mes: Gastos e Ingresos")
+        .description("Visualiza tus gastos e ingresos del mes en tiempo real y registra gastos, ingresos o pagos al instante.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    }
+}
+
+// MARK: - 2. KASHWidget (Resumen, Liquidez y Acciones Rápidas)
 struct KASHWidget: Widget {
     let kind: String = KASHSharedStore.mainWidgetKind
 
@@ -15,7 +29,7 @@ struct KASHWidget: Widget {
     }
 }
 
-// MARK: - 2. KASHUpcomingPaymentsWidget (Próximos Vencimientos y Tarjetas)
+// MARK: - 3. KASHUpcomingPaymentsWidget (Próximos Vencimientos y Tarjetas)
 struct KASHUpcomingPaymentsWidget: Widget {
     let kind: String = KASHSharedStore.upcomingWidgetKind
 
@@ -29,7 +43,7 @@ struct KASHUpcomingPaymentsWidget: Widget {
     }
 }
 
-// MARK: - 3. KASHLockScreenWidget (Pantalla de Bloqueo)
+// MARK: - 4. KASHLockScreenWidget (Pantalla de Bloqueo)
 struct KASHLockScreenWidget: Widget {
     let kind: String = KASHSharedStore.lockScreenWidgetKind
 
@@ -98,6 +112,7 @@ struct KASHLockScreenWidgetEntryView: View {
 @main
 struct KASHWidgetsBundle: WidgetBundle {
     var body: some Widget {
+        KASHMonthlyFlowWidget()
         KASHWidget()
         KASHUpcomingPaymentsWidget()
         KASHLockScreenWidget()

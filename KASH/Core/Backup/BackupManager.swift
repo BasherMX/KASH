@@ -64,6 +64,7 @@ final class BackupManager {
                 colorHex: a.colorHex,
                 iconName: a.iconName,
                 isActive: a.isActive,
+                displayOrder: a.displayOrder,
                 updatedAt: isoFormatter.string(from: a.updatedAt),
                 totalInstallments: a.totalInstallments,
                 paidInstallments: a.paidInstallments,
@@ -275,6 +276,7 @@ final class BackupManager {
                 account.colorHex = accDTO.colorHex
                 account.iconName = accDTO.iconName
                 account.isActive = accDTO.isActive
+                if let order = accDTO.displayOrder { account.displayOrder = order }
                 if let ti = accDTO.totalInstallments { account.totalInstallments = ti }
                 if let pi = accDTO.paidInstallments { account.paidInstallments = pi }
                 if let ia = accDTO.installmentAmount { account.installmentAmount = Decimal(ia) }
@@ -288,6 +290,7 @@ final class BackupManager {
                     colorHex: accDTO.colorHex,
                     iconName: accDTO.iconName,
                     isActive: accDTO.isActive,
+                    displayOrder: accDTO.displayOrder ?? 0,
                     totalInstallments: accDTO.totalInstallments ?? 0,
                     paidInstallments: accDTO.paidInstallments ?? 0,
                     installmentAmount: Decimal(accDTO.installmentAmount ?? 0),

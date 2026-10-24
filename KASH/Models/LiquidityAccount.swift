@@ -57,6 +57,7 @@ final class LiquidityAccount {
     var colorHex: String
     var iconName: String
     var isActive: Bool
+    var displayOrder: Int = 0
     var updatedAt: Date
 
     // Campos de Préstamo / Amortización
@@ -86,6 +87,7 @@ final class LiquidityAccount {
         colorHex: String = "#2563EB",
         iconName: String = "banknote.fill",
         isActive: Bool = true,
+        displayOrder: Int = 0,
         totalInstallments: Int = 0,
         paidInstallments: Int = 0,
         installmentAmount: Decimal = 0,
@@ -99,6 +101,7 @@ final class LiquidityAccount {
         self.colorHex = colorHex
         self.iconName = iconName
         self.isActive = isActive
+        self.displayOrder = displayOrder
         self.totalInstallments = totalInstallments
         self.paidInstallments = paidInstallments
         self.installmentAmount = installmentAmount

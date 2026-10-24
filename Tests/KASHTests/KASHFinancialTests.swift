@@ -592,4 +592,60 @@ struct KASHFinancialTests {
         #expect(count == 3)
         #expect(averageTicket == 700)
     }
+
+    @Test("Verifica datos y serialización de KASHWidgetSnapshot para widget de flujo mensual")
+    func testMonthlyFlowWidgetSnapshotData() throws {
+        let snapshot = KASHWidgetSnapshot(
+            currentMonthName: "OCTUBRE",
+            currentMonthExpenses: 14500,
+            currentMonthIncome: 21000,
+            totalDebt: 35000,
+            realLiquidity: 18000,
+            utilizationRatio: 0.28,
+            healthStatus: "Óptimo",
+            nextUpcomingCard: "Nu",
+            nextUpcomingDays: 5,
+            activeCardsCount: 3
+        )
+
+        #expect(snapshot.currentMonthName == "OCTUBRE")
+        #expect(snapshot.currentMonthExpenses == 14500)
+        #expect(snapshot.currentMonthIncome == 21000)
+        #expect(snapshot.totalDebt == 35000)
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(snapshot)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(KASHWidgetSnapshot.self, from: data)
+
+        #expect(decoded.currentMonthName == "OCTUBRE")
+        #expect(decoded.currentMonthExpenses == 14500)
+        #expect(decoded.currentMonthIncome == 21000)
+        #expect(decoded.totalDebt == 35000)
+        #expect(decoded.realLiquidity == 18000)
+    }
+
+    @Test("Verifica ordenamiento y reordenamiento de cuentas de dinero real por displayOrder")
+    func testLiquidityAccountDisplayOrderReordering() {
+        let acc1 = LiquidityAccount(name: "Nómina", institution: "BBVA", availableBalance: 15000, displayOrder: 0)
+        let acc2 = LiquidityAccount(name: "Efectivo", institution: "Efectivo", availableBalance: 2000, displayOrder: 1)
+        let acc3 = LiquidityAccount(name: "Cajita", institution: "Nu", availableBalance: 10000, displayOrder: 2)
+
+        var list = [acc3, acc1, acc2]
+        list.sort { $0.displayOrder < $1.displayOrder }
+
+        #expect(list[0].name == "Nómina")
+        #expect(list[1].name == "Efectivo")
+        #expect(list[2].name == "Cajita")
+
+        // Reordenar: Cajita al principio
+        acc3.displayOrder = 0
+        acc1.displayOrder = 1
+        acc2.displayOrder = 2
+
+        list.sort { $0.displayOrder < $1.displayOrder }
+        #expect(list[0].name == "Cajita")
+        #expect(list[1].name == "Nómina")
+        #expect(list[2].name == "Efectivo")
+    }
 }
