@@ -67,9 +67,14 @@ final class CreditCard {
         }
     }
 
-    /// Saldo deudor vigente tomado del corte cronológico más reciente
+    /// Saldo deudor vigente tomado del corte cronológico más reciente o gastos acumulados
     var currentBalance: Decimal {
-        sortedBalances.first?.balanceUsed ?? 0
+        if let latest = sortedBalances.first {
+            return latest.balanceUsed
+        }
+        let totalExpenses = (transactions ?? []).filter { $0.type == .expense }.reduce(0 as Decimal) { $0 + $1.amount }
+        let totalPayments = (transactions ?? []).filter { $0.type == .cardPayment }.reduce(0 as Decimal) { $0 + $1.amount }
+        return max(0 as Decimal, totalExpenses - totalPayments)
     }
 
     /// Capacidad de endeudamiento restante (NO es dinero disponible propio)

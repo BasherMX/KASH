@@ -15,6 +15,7 @@ final class Transaction {
     @Relationship var creditCard: CreditCard?
     @Relationship var liquidityAccount: LiquidityAccount?
     @Relationship var destinationCard: CreditCard?     // Para pagos a TDC desde cuenta de débito
+    @Relationship var destinationLiquidityAccount: LiquidityAccount? // Para transferencias entre cuentas de liquidez
     @Relationship var category: TransactionCategory?
 
     var type: TransactionType {
@@ -31,6 +32,7 @@ final class Transaction {
         creditCard: CreditCard? = nil,
         liquidityAccount: LiquidityAccount? = nil,
         destinationCard: CreditCard? = nil,
+        destinationLiquidityAccount: LiquidityAccount? = nil,
         category: TransactionCategory? = nil
     ) {
         self.id = UUID()
@@ -42,6 +44,7 @@ final class Transaction {
         self.creditCard = creditCard
         self.liquidityAccount = liquidityAccount
         self.destinationCard = destinationCard
+        self.destinationLiquidityAccount = destinationLiquidityAccount
         self.category = category
         self.createdAt = Date()
     }

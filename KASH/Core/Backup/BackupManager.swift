@@ -64,7 +64,10 @@ final class BackupManager {
                 colorHex: a.colorHex,
                 iconName: a.iconName,
                 isActive: a.isActive,
-                updatedAt: isoFormatter.string(from: a.updatedAt)
+                updatedAt: isoFormatter.string(from: a.updatedAt),
+                totalInstallments: a.totalInstallments,
+                paidInstallments: a.paidInstallments,
+                installmentAmount: NSDecimalNumber(decimal: a.installmentAmount).doubleValue
             )
         }
 
@@ -106,7 +109,10 @@ final class BackupManager {
                 minimumPayment: NSDecimalNumber(decimal: p.minimumPayment).doubleValue,
                 fullPaymentNoInterest: NSDecimalNumber(decimal: p.fullPaymentNoInterest).doubleValue,
                 actualAmountToPay: NSDecimalNumber(decimal: p.actualAmountToPay).doubleValue,
-                statusRaw: p.statusRaw
+                statusRaw: p.statusRaw,
+                reminderDaysBefore: p.reminderDaysBefore,
+                targetMonth: p.targetMonth,
+                targetYear: p.targetYear
             )
         }
 
@@ -121,6 +127,7 @@ final class BackupManager {
                 cardId: tx.creditCard?.id.uuidString,
                 liquidityAccountId: tx.liquidityAccount?.id.uuidString,
                 destinationCardId: tx.destinationCard?.id.uuidString,
+                destinationLiquidityAccountId: tx.destinationLiquidityAccount?.id.uuidString,
                 categoryId: tx.category?.id.uuidString
             )
         }
@@ -135,9 +142,9 @@ final class BackupManager {
         )
 
         let manifest = BackupManifest(
-            schemaVersion: "2.3.0",
-            appVersion: "1.3.0",
-            buildNumber: 5,
+            schemaVersion: "2.4.0",
+            appVersion: "1.4.0",
+            buildNumber: 6,
             exportedAt: isoFormatter.string(from: Date()),
             deviceModel: "iPhone",
             entityCounts: counts,
@@ -267,6 +274,9 @@ final class BackupManager {
                 account.colorHex = accDTO.colorHex
                 account.iconName = accDTO.iconName
                 account.isActive = accDTO.isActive
+                if let ti = accDTO.totalInstallments { account.totalInstallments = ti }
+                if let pi = accDTO.paidInstallments { account.paidInstallments = pi }
+                if let ia = accDTO.installmentAmount { account.installmentAmount = Decimal(ia) }
             } else {
                 account = LiquidityAccount(
                     name: accDTO.name,
@@ -275,7 +285,10 @@ final class BackupManager {
                     accountType: accType,
                     colorHex: accDTO.colorHex,
                     iconName: accDTO.iconName,
-                    isActive: accDTO.isActive
+                    isActive: accDTO.isActive,
+                    totalInstallments: accDTO.totalInstallments ?? 0,
+                    paidInstallments: accDTO.paidInstallments ?? 0,
+                    installmentAmount: Decimal(accDTO.installmentAmount ?? 0)
                 )
                 modelContext.insert(account)
             }
@@ -332,6 +345,9 @@ final class BackupManager {
                 fullPaymentNoInterest: Decimal(payDTO.fullPaymentNoInterest),
                 actualAmountToPay: Decimal(payDTO.actualAmountToPay),
                 status: status,
+                reminderDaysBefore: payDTO.reminderDaysBefore ?? 3,
+                targetMonth: payDTO.targetMonth ?? calendar.component(.month, from: dueDate),
+                targetYear: payDTO.targetYear ?? calendar.component(.year, from: dueDate),
                 card: card
             )
             modelContext.insert(payment)
@@ -344,6 +360,7 @@ final class BackupManager {
             let card = txDTO.cardId.flatMap { createdCards[$0] }
             let acc = txDTO.liquidityAccountId.flatMap { createdAccounts[$0] }
             let destCard = txDTO.destinationCardId.flatMap { createdCards[$0] }
+            let destAcc = txDTO.destinationLiquidityAccountId.flatMap { createdAccounts[$0] }
             let cat = txDTO.categoryId.flatMap { createdCategories[$0] }
 
             let tx = Transaction(
@@ -355,6 +372,7 @@ final class BackupManager {
                 creditCard: card,
                 liquidityAccount: acc,
                 destinationCard: destCard,
+                destinationLiquidityAccount: destAcc,
                 category: cat
             )
             modelContext.insert(tx)

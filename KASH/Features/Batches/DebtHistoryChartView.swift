@@ -8,17 +8,48 @@ import SwiftData
 struct DebtHistoryChartView: View {
     let records: [MonthlyRecord]
 
+    @State private var selectedDate: Date? = nil
+
+    private var chartData: [ChartDebtItem] {
+        records.sorted { $0.periodDate < $1.periodDate }.map { record in
+            ChartDebtItem(
+                id: record.id,
+                date: record.periodDate,
+                amount: NSDecimalNumber(decimal: record.totalDebt).doubleValue
+            )
+        }
+    }
+
+    private var selectedItem: ChartDebtItem? {
+        guard let selectedDate = selectedDate else { return nil }
+        return chartData.min(by: {
+            abs($0.date.timeIntervalSince(selectedDate)) < abs($1.date.timeIntervalSince(selectedDate))
+        })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Evolución de Deuda")
                         .font(.kashBodyBold)
-                    Text("Historial por corte mensual")
+                    Text(selectedItem != nil ? "Toca o desliza para inspeccionar" : "Historial por corte mensual")
                         .font(.kashCaption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+
+                if let sel = selectedItem {
+                    Button {
+                        withAnimation {
+                            self.selectedDate = nil
+                        }
+                    } label: {
+                        Text("Limpiar")
+                            .font(.kashMicro)
+                            .foregroundStyle(Color(hex: "#2563EB"))
+                    }
+                }
             }
 
             if records.isEmpty {
@@ -36,7 +67,7 @@ struct DebtHistoryChartView: View {
                     .frame(height: 150)
                     .overlay {
                         VStack(spacing: 6) {
-                            Text(single.date.formatted(.dateTime.month(.wide).year()).capitalized)
+                            Text(single.date.spanishMonthAndYear)
                                 .font(.kashCaptionBold)
                                 .foregroundStyle(.secondary)
                             PrivacyAwareText(
@@ -84,7 +115,35 @@ struct DebtHistoryChartView: View {
                         )
                         .foregroundStyle(Color(hex: "#1E40AF"))
                     }
+
+                    if let sel = selectedItem {
+                        RuleMark(x: .value("Selección", sel.date))
+                            .foregroundStyle(Color(hex: "#2563EB").opacity(0.7))
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            .annotation(position: .top, spacing: 6) {
+                                VStack(spacing: 2) {
+                                    Text(sel.date.spanishMonthAndYear)
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.white)
+                                    Text(Decimal(sel.amount).formatted(.currency(code: "MXN")))
+                                        .font(.system(size: 12, weight: .heavy))
+                                        .foregroundStyle(.white)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 8))
+                                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                            }
+
+                        PointMark(
+                            x: .value("Fecha", sel.date),
+                            y: .value("Deuda", sel.amount)
+                        )
+                        .symbolSize(90)
+                        .foregroundStyle(Color(hex: "#2563EB"))
+                    }
                 }
+                .chartXSelection(value: $selectedDate)
                 .chartYAxis {
                     AxisMarks(position: .leading) { value in
                         AxisGridLine()
@@ -97,9 +156,14 @@ struct DebtHistoryChartView: View {
                     }
                 }
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .month)) { value in
+                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
                         AxisGridLine()
-                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                        AxisValueLabel {
+                            if let dateVal = value.as(Date.self) {
+                                Text(dateVal.spanishShortMonthName)
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                        }
                     }
                 }
                 .frame(height: 190)
@@ -107,16 +171,6 @@ struct DebtHistoryChartView: View {
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    private var chartData: [ChartDebtItem] {
-        records.sorted { $0.periodDate < $1.periodDate }.map { record in
-            ChartDebtItem(
-                id: record.id,
-                date: record.periodDate,
-                amount: NSDecimalNumber(decimal: record.totalDebt).doubleValue
-            )
-        }
     }
 }
 

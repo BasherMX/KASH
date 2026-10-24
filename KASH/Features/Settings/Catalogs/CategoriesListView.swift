@@ -7,6 +7,8 @@ struct CategoriesListView: View {
     @Query(sort: \TransactionCategory.name) private var categories: [TransactionCategory]
     @State private var isAddCategoryPresented = false
     @State private var selectedCategoryForEdit: TransactionCategory?
+    @State private var categoryToDelete: TransactionCategory?
+    @State private var isShowingDeleteCategoryAlert = false
 
     var body: some View {
         NavigationStack {
@@ -14,24 +16,36 @@ struct CategoriesListView: View {
                 Section("Categorías de Gastos") {
                     ForEach(categories.filter { $0.categoryType == .expense }) { cat in
                         CategoryRow(category: cat)
+                            .contentShape(Rectangle())
                             .onTapGesture {
                                 selectedCategoryForEdit = cat
                             }
-                    }
-                    .onDelete { indexSet in
-                        deleteCategories(offsets: indexSet, type: .expense)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    categoryToDelete = cat
+                                    isShowingDeleteCategoryAlert = true
+                                } label: {
+                                    Label("Eliminar", systemImage: "trash")
+                                }
+                            }
                     }
                 }
 
                 Section("Categorías de Ingresos") {
                     ForEach(categories.filter { $0.categoryType == .income }) { cat in
                         CategoryRow(category: cat)
+                            .contentShape(Rectangle())
                             .onTapGesture {
                                 selectedCategoryForEdit = cat
                             }
-                    }
-                    .onDelete { indexSet in
-                        deleteCategories(offsets: indexSet, type: .income)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    categoryToDelete = cat
+                                    isShowingDeleteCategoryAlert = true
+                                } label: {
+                                    Label("Eliminar", systemImage: "trash")
+                                }
+                            }
                     }
                 }
             }
@@ -52,16 +66,25 @@ struct CategoriesListView: View {
             .sheet(item: $selectedCategoryForEdit) { cat in
                 CategoryEditSheet(categoryToEdit: cat)
             }
+            .alert("¿Eliminar Categoría?", isPresented: $isShowingDeleteCategoryAlert) {
+                Button("Cancelar", role: .cancel) {
+                    categoryToDelete = nil
+                }
+                Button("Eliminar", role: .destructive) {
+                    if let cat = categoryToDelete {
+                        modelContext.delete(cat)
+                        try? modelContext.save()
+                        categoryToDelete = nil
+                    }
+                }
+            } message: {
+                if let cat = categoryToDelete {
+                    Text("Se eliminará la categoría '\(cat.name)'. Los movimientos existentes conservarán sus datos.")
+                } else {
+                    Text("Esta acción eliminará la categoría permanentemente.")
+                }
+            }
         }
-    }
-
-    private func deleteCategories(offsets: IndexSet, type: TransactionType) {
-        let filtered = categories.filter { $0.categoryType == type }
-        for index in offsets {
-            let cat = filtered[index]
-            modelContext.delete(cat)
-        }
-        try? modelContext.save()
     }
 }
 

@@ -42,6 +42,11 @@ final class LiquidityAccount {
     var isActive: Bool
     var updatedAt: Date
 
+    // Campos de Préstamo / Amortización
+    var totalInstallments: Int = 0         // Plazo total en mensualidades / quincenas
+    var paidInstallments: Int = 0          // Mensualidades / quincenas ya cubiertas
+    var installmentAmount: Decimal = 0     // Monto de cada pago periódico
+
     @Relationship(deleteRule: .nullify, inverse: \Transaction.liquidityAccount)
     var transactions: [Transaction]? = []
 
@@ -57,7 +62,10 @@ final class LiquidityAccount {
         accountType: AccountType = .debit,
         colorHex: String = "#2563EB",
         iconName: String = "banknote.fill",
-        isActive: Bool = true
+        isActive: Bool = true,
+        totalInstallments: Int = 0,
+        paidInstallments: Int = 0,
+        installmentAmount: Decimal = 0
     ) {
         self.id = UUID()
         self.name = name
@@ -67,6 +75,9 @@ final class LiquidityAccount {
         self.colorHex = colorHex
         self.iconName = iconName
         self.isActive = isActive
+        self.totalInstallments = totalInstallments
+        self.paidInstallments = paidInstallments
+        self.installmentAmount = installmentAmount
         self.updatedAt = Date()
     }
 }

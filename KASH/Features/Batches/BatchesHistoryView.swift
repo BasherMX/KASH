@@ -291,7 +291,7 @@ struct BatchesHistoryView: View {
                 }
             } message: {
                 if let rec = recordToDelete {
-                    Text("Se eliminará el corte de \(rec.periodDate.formatted(.dateTime.month(.wide).year())). Esta acción no se puede deshacer.")
+                    Text("Se eliminará el corte de \(rec.periodDate.spanishMonthAndYear). Esta acción no se puede deshacer.")
                 } else {
                     Text("Esta acción eliminará el registro del corte y sus saldos asociados.")
                 }
@@ -327,7 +327,7 @@ struct MonthlyRecordCard: View {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(record.periodDate.formatted(.dateTime.month(.wide).year()).capitalized)
+                            Text(record.periodDate.spanishMonthAndYear)
                                 .font(.kashBodyBold)
                                 .foregroundStyle(.primary)
 

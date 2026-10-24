@@ -7,6 +7,8 @@ struct LiquidityAccountsListView: View {
     @Query(sort: \LiquidityAccount.name) private var accounts: [LiquidityAccount]
     @State private var isAddAccountPresented = false
     @State private var selectedAccountForEdit: LiquidityAccount?
+    @State private var accountToDelete: LiquidityAccount?
+    @State private var isShowingDeleteAccountAlert = false
 
     var body: some View {
         NavigationStack {
@@ -29,9 +31,14 @@ struct LiquidityAccountsListView: View {
                                         LiquidityAccountRow(account: account)
                                     }
                                     .tint(.primary)
-                                }
-                                .onDelete { indexSet in
-                                    deleteAccounts(offsets: indexSet, from: filtered)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button(role: .destructive) {
+                                            accountToDelete = account
+                                            isShowingDeleteAccountAlert = true
+                                        } label: {
+                                            Label("Eliminar", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -55,16 +62,26 @@ struct LiquidityAccountsListView: View {
             .sheet(item: $selectedAccountForEdit) { account in
                 LiquidityAccountEditSheet(accountToEdit: account)
             }
+            .alert("¿Eliminar Cuenta?", isPresented: $isShowingDeleteAccountAlert) {
+                Button("Cancelar", role: .cancel) {
+                    accountToDelete = nil
+                }
+                Button("Eliminar", role: .destructive) {
+                    if let acc = accountToDelete {
+                        modelContext.delete(acc)
+                        try? modelContext.save()
+                        KASHWidgetSyncService.sync(modelContext: modelContext)
+                        accountToDelete = nil
+                    }
+                }
+            } message: {
+                if let acc = accountToDelete {
+                    Text("Se eliminará '\(acc.name)' y su saldo registrado. Esta acción no se puede deshacer.")
+                } else {
+                    Text("Esta acción eliminará la cuenta seleccionada.")
+                }
+            }
         }
-    }
-
-    private func deleteAccounts(offsets: IndexSet, from list: [LiquidityAccount]) {
-        for index in offsets {
-            let item = list[index]
-            modelContext.delete(item)
-        }
-        try? modelContext.save()
-        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 }
 
@@ -125,6 +142,13 @@ struct LiquidityAccountEditSheet: View {
     @State private var selectedColorHex: String = "#2563EB"
     @State private var selectedIcon: String = "banknote.fill"
 
+    // Parámetros de Préstamo
+    @State private var totalInstallments: Int = 12
+    @State private var paidInstallments: Int = 0
+    @State private var installmentAmountString: String = ""
+
+    @State private var isShowingDeleteConfirmation = false
+
     private let availableColors = [
         "#2563EB", "#10B981", "#F59E0B", "#8B5CF6", "#06B6D4", "#EC4899", "#1E293B", "#64748B"
     ]
@@ -146,6 +170,22 @@ struct LiquidityAccountEditSheet: View {
                     Picker("Tipo de Cuenta", selection: $selectedType) {
                         ForEach(AccountType.allCases, id: \.self) { type in
                             Text(type.title).tag(type)
+                        }
+                    }
+                }
+
+                if selectedType == .loan {
+                    Section("Plan de Cuotas del Préstamo") {
+                        Stepper("Plazo total: \(totalInstallments) cuotas", value: $totalInstallments, in: 1...240)
+                        Stepper("Cuotas cubiertas: \(paidInstallments) cuotas", value: $paidInstallments, in: 0...totalInstallments)
+
+                        HStack {
+                            Text("Monto por cuota ($)")
+                            Spacer()
+                            TextField("0.00", text: $installmentAmountString)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(minWidth: 100)
                         }
                     }
                 }
@@ -192,6 +232,20 @@ struct LiquidityAccountEditSheet: View {
                         .padding(.vertical, 4)
                     }
                 }
+
+                if accountToEdit != nil {
+                    Section {
+                        Button(role: .destructive) {
+                            isShowingDeleteConfirmation = true
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Label("Eliminar Cuenta", systemImage: "trash")
+                                Spacer()
+                            }
+                        }
+                    }
+                }
             }
             .dismissKeyboardOnTap()
             .navigationTitle(accountToEdit == nil ? "Nueva Cuenta" : "Editar Cuenta")
@@ -215,6 +269,19 @@ struct LiquidityAccountEditSheet: View {
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .alert("¿Eliminar Cuenta?", isPresented: $isShowingDeleteConfirmation) {
+                Button("Cancelar", role: .cancel) {}
+                Button("Eliminar", role: .destructive) {
+                    if let acc = accountToEdit {
+                        modelContext.delete(acc)
+                        try? modelContext.save()
+                        KASHWidgetSyncService.sync(modelContext: modelContext)
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("Esta acción eliminará la cuenta permanentemente.")
+            }
             .onAppear {
                 if let acc = accountToEdit {
                     name = acc.name
@@ -223,6 +290,9 @@ struct LiquidityAccountEditSheet: View {
                     selectedType = acc.accountType
                     selectedColorHex = acc.colorHex
                     selectedIcon = acc.iconName
+                    totalInstallments = acc.totalInstallments > 0 ? acc.totalInstallments : 12
+                    paidInstallments = acc.paidInstallments
+                    installmentAmountString = "\(acc.installmentAmount)"
                 }
             }
         }
@@ -230,6 +300,7 @@ struct LiquidityAccountEditSheet: View {
 
     private func saveAccount() {
         let cleanBalance = CurrencyInputParser.parseDecimal(balanceString)
+        let cleanInstallment = CurrencyInputParser.parseDecimal(installmentAmountString)
 
         if let acc = accountToEdit {
             acc.name = name
@@ -238,6 +309,9 @@ struct LiquidityAccountEditSheet: View {
             acc.accountType = selectedType
             acc.colorHex = selectedColorHex
             acc.iconName = selectedIcon
+            acc.totalInstallments = totalInstallments
+            acc.paidInstallments = paidInstallments
+            acc.installmentAmount = cleanInstallment
             acc.updatedAt = Date()
         } else {
             let newAcc = LiquidityAccount(
@@ -246,7 +320,11 @@ struct LiquidityAccountEditSheet: View {
                 availableBalance: cleanBalance,
                 accountType: selectedType,
                 colorHex: selectedColorHex,
-                iconName: selectedIcon
+                iconName: selectedIcon,
+                isActive: true,
+                totalInstallments: totalInstallments,
+                paidInstallments: paidInstallments,
+                installmentAmount: cleanInstallment
             )
             modelContext.insert(newAcc)
         }

@@ -7,6 +7,8 @@ struct CreditCardsListView: View {
     @Query(sort: \CreditCard.displayOrder) private var creditCards: [CreditCard]
     @State private var isAddCardSheetPresented = false
     @State private var selectedCardForEdit: CreditCard?
+    @State private var cardToDelete: CreditCard?
+    @State private var isShowingDeleteCardAlert = false
 
     var body: some View {
         NavigationStack {
@@ -33,40 +35,56 @@ struct CreditCardsListView: View {
                                 }
                                 .tint(Color(hex: "#2563EB"))
                             }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                cardToDelete = card
+                                isShowingDeleteCardAlert = true
+                            } label: {
+                                Label("Eliminar", systemImage: "trash")
+                            }
                         }
-                        .onDelete(perform: deleteCards)
-                    } header: {
-                        Text("Tus Tarjetas (\(creditCards.count))")
                     }
+                } header: {
+                    Text("Tus Tarjetas (\(creditCards.count))")
                 }
             }
-            .navigationTitle("Tarjetas de Crédito")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isAddCardSheetPresented = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 20))
-                    }
+        }
+        .navigationTitle("Tarjetas de Crédito")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isAddCardSheetPresented = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20))
                 }
             }
-            .sheet(isPresented: $isAddCardSheetPresented) {
-                CreditCardEditSheet(cardToEdit: nil)
+        }
+        .sheet(isPresented: $isAddCardSheetPresented) {
+            CreditCardEditSheet(cardToEdit: nil)
+        }
+        .sheet(item: $selectedCardForEdit) { card in
+            CreditCardEditSheet(cardToEdit: card)
+        }
+        .alert("¿Eliminar Tarjeta de Crédito?", isPresented: $isShowingDeleteCardAlert) {
+            Button("Cancelar", role: .cancel) {
+                cardToDelete = nil
             }
-            .sheet(item: $selectedCardForEdit) { card in
-                CreditCardEditSheet(cardToEdit: card)
+            Button("Eliminar", role: .destructive) {
+                if let card = cardToDelete {
+                    modelContext.delete(card)
+                    try? modelContext.save()
+                    KASHWidgetSyncService.sync(modelContext: modelContext)
+                    cardToDelete = nil
+                }
+            }
+        } message: {
+            if let card = cardToDelete {
+                Text("Se eliminará '\(card.name)' y todos sus registros y cortes asociados. Esta acción no se puede deshacer.")
+            } else {
+                Text("Esta acción eliminará la tarjeta permanentemente.")
             }
         }
-    }
-
-    private func deleteCards(at offsets: IndexSet) {
-        for index in offsets {
-            let card = creditCards[index]
-            modelContext.delete(card)
-        }
-        try? modelContext.save()
-        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 }
 

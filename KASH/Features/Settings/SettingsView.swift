@@ -30,7 +30,27 @@ struct SettingsView: View {
     @State private var isShowingAlert: Bool = false
     @State private var isShowingDeleteConfirmationAlert: Bool = false
 
+    @State private var isTestingNotification: Bool = false
+    @State private var notificationFeedbackMessage: String? = nil
+    @State private var isShowingNotificationAlert: Bool = false
+
     @State private var showIncomeSavedFeedback: Bool = false
+
+    private func testNotifications() {
+        isTestingNotification = true
+        Task {
+            let success = await NotificationManager.shared.sendTestNotification()
+            await MainActor.run {
+                isTestingNotification = false
+                if success {
+                    notificationFeedbackMessage = "¡Notificación de prueba enviada exitosamente! Recibirás la alerta en tu pantalla en un par de segundos."
+                } else {
+                    notificationFeedbackMessage = "No se pudieron activar las notificaciones. Por favor revisa en Ajustes de iOS > Notificaciones > KASH y asegúrate de permitir las alertas y sonidos."
+                }
+                isShowingNotificationAlert = true
+            }
+        }
+    }
 
     @discardableResult
     private func ensureSettings() -> UserSettings {
@@ -58,17 +78,10 @@ struct SettingsView: View {
                             s.biometricLockMandatory = newValue
                             try? modelContext.save()
                         }
-
-                    Toggle("Ocultar Saldos por Defecto (Modo 👁️)", isOn: $isPrivacyModeEnabled)
-                        .onChange(of: isPrivacyModeEnabled) { _, newValue in
-                            let s = ensureSettings()
-                            s.isPrivacyModeEnabled = newValue
-                            try? modelContext.save()
-                        }
                 } header: {
                     Label("Seguridad & Privacidad", systemImage: "shield.lefthalf.filled")
                 } footer: {
-                    Text("Por defecto, la autenticación biométrica está desactivada y solo se solicitará si decides activarla aquí.")
+                    Text("Por defecto, la autenticación biométrica está desactivada y solo se solicitará si decides activarla aquí. Puedes ocultar o mostrar los saldos en cualquier momento usando el ícono de ojo 👁️ en las barras superiores.")
                 }
 
                 // SECCIÓN 2: CATÁLOGOS DE CUENTAS Y PASIVOS
@@ -136,10 +149,33 @@ struct SettingsView: View {
                         s.paymentReminderDaysBefore = newValue
                         try? modelContext.save()
                     }
+
+                    Button {
+                        testNotifications()
+                    } label: {
+                        HStack {
+                            Label("Probar Notificaciones", systemImage: "bell.badge")
+                            Spacer()
+                            if isTestingNotification {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                HStack(spacing: 4) {
+                                    Text("Enviar prueba")
+                                        .font(.kashCaption)
+                                        .foregroundStyle(Color(hex: "#2563EB"))
+                                    Image(systemName: "paperplane.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(Color(hex: "#2563EB"))
+                                }
+                            }
+                        }
+                    }
+                    .disabled(isTestingNotification)
                 } header: {
                     Label("Notificaciones y Recordatorios", systemImage: "bell.badge.fill")
                 } footer: {
-                    Text("Los días de corte se configuran de forma específica en cada tarjeta.")
+                    Text("Los días de corte se configuran de forma específica en cada tarjeta. Toca 'Probar Notificaciones' para verificar que iOS tenga los permisos habilitados.")
                 }
 
                 // SECCIÓN 5: PARÁMETROS DE SIMULADORES Y FINANZAS
@@ -269,7 +305,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Control TDC • KASH v1.3.0 (Build 5)")
+                        Text("Control TDC • KASH v1.4.0 (Build 6)")
                             .font(.kashMicro)
                             .foregroundStyle(.tertiary)
 
@@ -318,6 +354,11 @@ struct SettingsView: View {
                 Button("Entendido", role: .cancel) {}
             } message: {
                 Text(alertMessage)
+            }
+            .alert("Notificaciones KASH", isPresented: $isShowingNotificationAlert) {
+                Button("Entendido", role: .cancel) {}
+            } message: {
+                Text(notificationFeedbackMessage ?? "")
             }
             .alert(
                 "⚠️ ¿Eliminar todos los datos de KASH?",

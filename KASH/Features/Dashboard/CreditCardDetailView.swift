@@ -13,6 +13,8 @@ struct CreditCardDetailView: View {
     @State private var isEditSheetPresented = false
     @State private var isBatchLogSheetPresented = false
     @State private var transactionToEdit: Transaction? = nil
+    @State private var isUpcomingPaymentSheetPresented = false
+    @State private var selectedPaymentForEdit: UpcomingPayment? = nil
 
     private var historicalBalancesChronological: [CardMonthlyBalance] {
         card.sortedBalances.reversed()
@@ -35,6 +37,19 @@ struct CreditCardDetailView: View {
 
                 // 3. Gráfica Histórica de Deuda de la Tarjeta
                 CardDebtHistoryChart(balances: historicalBalancesChronological, colorHex: card.colorHex)
+
+                // 3.1 Próximo Pago Registrado para esta Tarjeta
+                CardUpcomingPaymentSection(
+                    card: card,
+                    onRegisterPayment: {
+                        selectedPaymentForEdit = nil
+                        isUpcomingPaymentSheetPresented = true
+                    },
+                    onEditPayment: { p in
+                        selectedPaymentForEdit = p
+                        isUpcomingPaymentSheetPresented = true
+                    }
+                )
 
                 // 4. Histórico de Cortes de Esta Tarjeta (Agrupado por año y colapsable, año actual descolapsado por defecto)
                 CardHistoricalCutsSection(card: card)
@@ -77,6 +92,87 @@ struct CreditCardDetailView: View {
         .sheet(item: $transactionToEdit) { tx in
             QuickTransactionSheet(editingTransaction: tx)
         }
+        .sheet(isPresented: $isUpcomingPaymentSheetPresented) {
+            UpcomingPaymentEditSheet(paymentToEdit: selectedPaymentForEdit)
+        }
+    }
+}
+
+// MARK: - CardUpcomingPaymentSection
+private struct CardUpcomingPaymentSection: View {
+    let card: CreditCard
+    let onRegisterPayment: () -> Void
+    let onEditPayment: (UpcomingPayment) -> Void
+
+    private var latestUpcomingPayment: UpcomingPayment? {
+        card.upcomingPayments?.sorted { $0.dueDate > $1.dueDate }.first
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Próximo Pago Registrado", systemImage: "bell.badge.fill")
+                    .font(.kashBodyBold)
+                Spacer()
+                Button {
+                    if let latest = latestUpcomingPayment {
+                        onEditPayment(latest)
+                    } else {
+                        onRegisterPayment()
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: latestUpcomingPayment == nil ? "plus" : "pencil")
+                        Text(latestUpcomingPayment == nil ? "Registrar" : "Editar")
+                    }
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "#2563EB").opacity(0.12), in: Capsule())
+                    .foregroundStyle(Color(hex: "#2563EB"))
+                }
+            }
+
+            if let p = latestUpcomingPayment {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(p.status == .paid ? "Pagado" : "Pendiente")
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                (p.status == .paid ? Color(hex: "#10B981") : Color(hex: "#F59E0B")).opacity(0.15),
+                                in: Capsule()
+                            )
+                            .foregroundStyle(p.status == .paid ? Color(hex: "#10B981") : Color(hex: "#F59E0B"))
+
+                        Text("Vence: \(p.dueDate.spanishMediumDate)")
+                            .font(.kashCaption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        PrivacyAwareText(
+                            amount: p.fullPaymentNoInterest,
+                            font: .kashCaptionBold,
+                            foregroundColor: Color(hex: "#EF4444")
+                        )
+                        Text("No generar intereses")
+                            .font(.kashMicro)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.top, 2)
+            } else {
+                Text("No has registrado la fecha límite ni montos de pago para el próximo periodo de esta tarjeta.")
+                    .font(.kashCaption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -329,17 +425,48 @@ private struct CardDebtHistoryChart: View {
     let balances: [CardMonthlyBalance]
     let colorHex: String
 
+    @State private var selectedDate: Date? = nil
+
+    private var sortedBalancesChronological: [CardMonthlyBalance] {
+        balances.sorted {
+            let d0 = $0.monthlyRecord?.periodDate ?? $0.recordedAt
+            let d1 = $1.monthlyRecord?.periodDate ?? $1.recordedAt
+            return d0 < d1
+        }
+    }
+
+    private var selectedBalance: CardMonthlyBalance? {
+        guard let selectedDate = selectedDate else { return nil }
+        return sortedBalancesChronological.min(by: {
+            let d0 = $0.monthlyRecord?.periodDate ?? $0.recordedAt
+            let d1 = $1.monthlyRecord?.periodDate ?? $1.recordedAt
+            return abs(d0.timeIntervalSince(selectedDate)) < abs(d1.timeIntervalSince(selectedDate))
+        })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Historial de Avance de Deuda")
                         .font(.kashBodyBold)
-                    Text("Evolución saldo deudor en cada corte mensual")
+                    Text(selectedBalance != nil ? "Toca o desliza para inspeccionar" : "Evolución saldo deudor en cada corte mensual")
                         .font(.kashMicro)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+
+                if selectedBalance != nil {
+                    Button {
+                        withAnimation {
+                            self.selectedDate = nil
+                        }
+                    } label: {
+                        Text("Limpiar")
+                            .font(.kashMicro)
+                            .foregroundStyle(Color(hex: "#2563EB"))
+                    }
+                }
             }
 
             if balances.isEmpty {
@@ -371,7 +498,7 @@ private struct CardDebtHistoryChart: View {
                 .padding(.vertical, 20)
             } else {
                 Chart {
-                    ForEach(balances) { b in
+                    ForEach(sortedBalancesChronological) { b in
                         let date = b.monthlyRecord?.periodDate ?? b.recordedAt
 
                         AreaMark(
@@ -402,13 +529,48 @@ private struct CardDebtHistoryChart: View {
                         .foregroundStyle(Color(hex: colorHex))
                         .symbolSize(36)
                     }
+
+                    if let sel = selectedBalance {
+                        let date = sel.monthlyRecord?.periodDate ?? sel.recordedAt
+                        RuleMark(x: .value("Selección", date))
+                            .foregroundStyle(Color(hex: colorHex).opacity(0.7))
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            .annotation(position: .top, spacing: 6) {
+                                VStack(spacing: 2) {
+                                    Text(date.spanishMonthAndYear)
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.white)
+                                    Text(sel.balanceUsed.formatted(.currency(code: "MXN")))
+                                        .font(.system(size: 12, weight: .heavy))
+                                        .foregroundStyle(.white)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 8))
+                                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                            }
+
+                        PointMark(
+                            x: .value("Fecha", date),
+                            y: .value("Saldo", sel.balanceUsed)
+                        )
+                        .symbolSize(90)
+                        .foregroundStyle(Color(hex: colorHex))
+                    }
                 }
+                .chartXSelection(value: $selectedDate)
                 .chartYAxis {
                     AxisMarks(position: .leading)
                 }
                 .chartXAxis {
-                    AxisMarks(values: .automatic) { _ in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).year(.twoDigits))
+                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let dateVal = value.as(Date.self) {
+                                Text(dateVal.spanishShortMonthName)
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                        }
                     }
                 }
                 .frame(height: 180)
@@ -520,7 +682,7 @@ private struct CardHistoricalCutsSection: View {
 
                                         HStack {
                                             VStack(alignment: .leading, spacing: 2) {
-                                                Text(date.formatted(.dateTime.month(.wide).year()).capitalized)
+                                                Text(date.spanishMonthAndYear)
                                                     .font(.kashCaptionBold)
                                                 Text("Corte del mes")
                                                     .font(.kashMicro)

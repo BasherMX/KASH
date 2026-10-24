@@ -40,6 +40,7 @@ final class AppState: ObservableObject {
     @Published var quickTransactionInitialType: TransactionType = .expense
     @Published var isQuickTransactionPresented: Bool = false
     @Published var isCardPaymentPresented: Bool = false
+    @Published var isTransferPresented: Bool = false
     @Published var isBatchLogPresented: Bool = false
     @Published var isOnboardingPresented: Bool = false
     @Published var isPrivacyBlurred: Bool = false
@@ -105,6 +106,9 @@ struct RootView: View {
         }
         .sheet(isPresented: $appState.isCardPaymentPresented) {
             CardPaymentSheet()
+        }
+        .sheet(isPresented: $appState.isTransferPresented) {
+            TransferSheet()
         }
         .sheet(isPresented: $appState.isBatchLogPresented) {
             BatchLogSheet()
@@ -177,11 +181,13 @@ struct RootView: View {
             processPendingWidgetAction()
             WidgetCenter.shared.reloadAllTimelines()
         case .inactive:
-            // Activar desenfoque inmediato para ocultar datos en el App Switcher
-            appState.isPrivacyBlurred = true
-        case .background:
-            appState.isPrivacyBlurred = true
+            // Activar desenfoque inmediato en el App Switcher SOLO si el bloqueo biométrico está activo
             if isBiometricMandatory {
+                appState.isPrivacyBlurred = true
+            }
+        case .background:
+            if isBiometricMandatory {
+                appState.isPrivacyBlurred = true
                 authManager.lockApp()
             }
             WidgetCenter.shared.reloadAllTimelines()

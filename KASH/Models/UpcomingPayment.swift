@@ -35,6 +35,9 @@ final class UpcomingPayment {
     var actualAmountToPay: Decimal
     var statusRaw: String                  // "pending", "paid", "partial"
     var paymentDate: Date?
+    var reminderDaysBefore: Int = 3        // Días previos para alerta
+    var targetMonth: Int = 0               // Mes correspondiente (1-12)
+    var targetYear: Int = 0                // Año correspondiente (ej. 2026)
     var card: CreditCard?
 
     var status: PaymentStatus {
@@ -49,6 +52,9 @@ final class UpcomingPayment {
         fullPaymentNoInterest: Decimal = 0,
         actualAmountToPay: Decimal = 0,
         status: PaymentStatus = .pending,
+        reminderDaysBefore: Int = 3,
+        targetMonth: Int = 0,
+        targetYear: Int = 0,
         card: CreditCard? = nil
     ) {
         self.id = UUID()
@@ -58,6 +64,9 @@ final class UpcomingPayment {
         self.fullPaymentNoInterest = fullPaymentNoInterest
         self.actualAmountToPay = actualAmountToPay
         self.statusRaw = status.rawValue
+        self.reminderDaysBefore = reminderDaysBefore
+        self.targetMonth = targetMonth == 0 ? Calendar.current.component(.month, from: dueDate) : targetMonth
+        self.targetYear = targetYear == 0 ? Calendar.current.component(.year, from: dueDate) : targetYear
         self.card = card
     }
 }

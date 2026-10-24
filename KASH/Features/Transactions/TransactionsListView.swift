@@ -13,6 +13,8 @@ struct TransactionsListView: View {
     @State private var isQuickTxSheetPresented = false
     @State private var isCardPaymentSheetPresented = false
     @State private var transactionToEdit: Transaction? = nil
+    @State private var transactionToDelete: Transaction? = nil
+    @State private var isShowingDeleteTransactionAlert = false
 
     private var transactionsGroupedByYear: [(year: Int, items: [Transaction])] {
         let grouped = Dictionary(grouping: filteredTransactions) { tx in
@@ -108,9 +110,10 @@ struct TransactionsListView: View {
                                                 }
                                                 .tint(Color(hex: "#2563EB"))
                                             }
-                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                 Button(role: .destructive) {
-                                                    deleteTransaction(tx)
+                                                    transactionToDelete = tx
+                                                    isShowingDeleteTransactionAlert = true
                                                 } label: {
                                                     Label("Eliminar", systemImage: "trash")
                                                 }
@@ -177,9 +180,15 @@ struct TransactionsListView: View {
                                         Label("Editar", systemImage: "pencil")
                                     }
                                     .tint(Color(hex: "#2563EB"))
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        transactionToDelete = tx
+                                        isShowingDeleteTransactionAlert = true
+                                    } label: {
+                                        Label("Eliminar", systemImage: "trash")
+                                    }
                                 }
                         }
-                        .onDelete(perform: deleteTransactions)
                     }
                     .listStyle(.plain)
                 }
@@ -219,6 +228,22 @@ struct TransactionsListView: View {
             .sheet(item: $transactionToEdit) { tx in
                 QuickTransactionSheet(editingTransaction: tx)
             }
+            .alert("¿Eliminar Movimiento?", isPresented: $isShowingDeleteTransactionAlert) {
+                Button("Cancelar", role: .cancel) {
+                    transactionToDelete = nil
+                }
+                Button("Eliminar", role: .destructive) {
+                    if let tx = transactionToDelete {
+                        deleteTransaction(tx)
+                    }
+                }
+            } message: {
+                if let tx = transactionToDelete {
+                    Text("Se eliminará '\(tx.concept)' por \(tx.amount.formatted(.currency(code: "MXN"))). Los saldos serán recalculados automáticamente.")
+                } else {
+                    Text("Esta acción eliminará el movimiento permanentemente.")
+                }
+            }
         }
     }
 
@@ -235,21 +260,32 @@ struct TransactionsListView: View {
         case .expense:
             if let acc = tx.liquidityAccount {
                 acc.availableBalance += tx.amount
+                acc.updatedAt = Date()
+            }
+            if let card = tx.creditCard, let latest = card.sortedBalances.first {
+                latest.balanceUsed = max(0 as Decimal, latest.balanceUsed - tx.amount)
             }
         case .income:
             if let acc = tx.liquidityAccount {
                 acc.availableBalance -= tx.amount
+                acc.updatedAt = Date()
             }
         case .cardPayment:
             if let acc = tx.liquidityAccount {
                 acc.availableBalance += tx.amount
+                acc.updatedAt = Date()
             }
             if let latestBalance = tx.destinationCard?.sortedBalances.first {
                 latestBalance.balanceUsed += tx.amount
             }
         case .transfer:
-            if let acc = tx.liquidityAccount {
-                acc.availableBalance += tx.amount
+            if let source = tx.liquidityAccount {
+                source.availableBalance += tx.amount
+                source.updatedAt = Date()
+            }
+            if let dest = tx.destinationLiquidityAccount {
+                dest.availableBalance -= tx.amount
+                dest.updatedAt = Date()
             }
         }
     }
@@ -259,13 +295,8 @@ struct TransactionsListView: View {
         modelContext.delete(tx)
         try? modelContext.save()
         KASHWidgetSyncService.sync(modelContext: modelContext)
+        transactionToDelete = nil
     }
-
-    private func deleteTransactions(at offsets: IndexSet) {
-        for index in offsets {
-            let tx = filteredTransactions[index]
-            revertTransactionBalances(tx)
-            modelContext.delete(tx)
         }
         try? modelContext.save()
         KASHWidgetSyncService.sync(modelContext: modelContext)

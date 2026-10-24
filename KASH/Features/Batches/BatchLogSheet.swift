@@ -47,7 +47,7 @@ struct BatchLogSheet: View {
                         HStack(spacing: 8) {
                             Image(systemName: "info.circle.fill")
                                 .foregroundStyle(Color(hex: "#F59E0B"))
-                            Text("Ya existe un corte para \(dup.periodDate.formatted(.dateTime.month(.wide).year())). Al guardar, se actualizarán los datos de ese corte existente.")
+                            Text("Ya existe un corte para \(dup.periodDate.spanishMonthAndYear). Al guardar, se actualizarán los datos de ese corte existente.")
                                 .font(.kashCaption)
                                 .foregroundStyle(.secondary)
                         }

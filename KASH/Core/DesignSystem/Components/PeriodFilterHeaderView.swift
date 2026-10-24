@@ -9,8 +9,8 @@ enum PeriodFilterMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .month: return "Por Mes"
-        case .historical: return "Histórico"
+        case .month: return "Mes"
+        case .historical: return "Historial"
         }
     }
 }
@@ -39,12 +39,18 @@ struct PeriodFilterSelection: Equatable {
     var periodTitle: String {
         switch mode {
         case .month:
-            let fmt = DateFormatter()
-            fmt.locale = Locale(identifier: "es_MX")
-            fmt.dateFormat = "LLLL yyyy"
-            return fmt.string(from: selectedMonthDate).capitalized
+            return selectedMonthDate.spanishMonthAndYear
         case .historical:
             return "Histórico Completo"
+        }
+    }
+
+    var compactPeriodTitle: String {
+        switch mode {
+        case .month:
+            return selectedMonthDate.spanishShortMonthAndYear
+        case .historical:
+            return "Historial"
         }
     }
 
@@ -102,9 +108,9 @@ struct PeriodFilterHeaderView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                // Selector de Modo: Por Mes vs Histórico
-                HStack(spacing: 4) {
+            HStack(spacing: 8) {
+                // Selector de Modo: Mes vs Historial (más compacto)
+                HStack(spacing: 2) {
                     ForEach(PeriodFilterMode.allCases) { mode in
                         let isSelected = selection.mode == mode
                         Button {
@@ -112,14 +118,14 @@ struct PeriodFilterHeaderView: View {
                                 selection.mode = mode
                             }
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 3) {
                                 Image(systemName: mode == .month ? "calendar" : "clock.arrow.circlepath")
-                                    .font(.system(size: 11, weight: .bold))
+                                    .font(.system(size: 10, weight: .bold))
                                 Text(mode.title)
-                                    .font(.kashCaptionBold)
+                                    .font(.system(size: 11, weight: .semibold))
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
                             .background(
                                 isSelected ? Color(hex: "#2563EB") : Color.clear,
                                 in: Capsule()
@@ -129,22 +135,22 @@ struct PeriodFilterHeaderView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(3)
+                .padding(2)
                 .background(Color.secondary.opacity(0.12), in: Capsule())
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 if selection.mode == .month {
-                    // Controles de navegación mensual
-                    HStack(spacing: 6) {
+                    // Controles de navegación mensual compactos
+                    HStack(spacing: 4) {
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 selection.shiftMonth(by: -1)
                             }
                         } label: {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 12, weight: .bold))
-                                .frame(width: 28, height: 28)
+                                .font(.system(size: 11, weight: .bold))
+                                .frame(width: 26, height: 26)
                                 .background(Color.secondary.opacity(0.12), in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -178,17 +184,17 @@ struct PeriodFilterHeaderView: View {
                                 }
                             }
                         } label: {
-                            HStack(spacing: 4) {
-                                Text(selection.periodTitle)
-                                    .font(.kashCaptionBold)
+                            HStack(spacing: 3) {
+                                Text(selection.compactPeriodTitle)
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 Image(systemName: "chevron.down")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.system(size: 9, weight: .bold))
                                     .foregroundStyle(Color(hex: "#2563EB"))
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
                             .background(Color.secondary.opacity(0.12), in: Capsule())
                         }
 
@@ -198,8 +204,8 @@ struct PeriodFilterHeaderView: View {
                             }
                         } label: {
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .bold))
-                                .frame(width: 28, height: 28)
+                                .font(.system(size: 11, weight: .bold))
+                                .frame(width: 26, height: 26)
                                 .background(Color.secondary.opacity(0.12), in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -210,14 +216,14 @@ struct PeriodFilterHeaderView: View {
                             selection.resetToCurrentMonth()
                         }
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 3) {
                             Image(systemName: "calendar")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.system(size: 10, weight: .semibold))
                             Text("Mes Actual")
-                                .font(.kashMicro)
+                                .font(.system(size: 11, weight: .medium))
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
                         .background(Color(hex: "#2563EB").opacity(0.12), in: Capsule())
                         .foregroundStyle(Color(hex: "#2563EB"))
                     }
@@ -225,8 +231,8 @@ struct PeriodFilterHeaderView: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
     }
 }

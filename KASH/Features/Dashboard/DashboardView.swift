@@ -14,6 +14,10 @@ struct DashboardView: View {
     @Query private var upcomingPayments: [UpcomingPayment]
     @Query private var monthlyRecords: [MonthlyRecord]
 
+    @State private var isUpcomingPaymentSheetPresented = false
+    @State private var selectedUpcomingPaymentForEdit: UpcomingPayment?
+    @State private var isTransferSheetPresented = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -41,10 +45,21 @@ struct DashboardView: View {
                     )
 
                     // 4. Próximos Pagos del Mes (Compromisos Críticos)
-                    UpcomingPaymentsCard(payments: upcomingPayments)
+                    UpcomingPaymentsCard(
+                        payments: upcomingPayments,
+                        onAddPayment: {
+                            isUpcomingPaymentSheetPresented = true
+                        },
+                        onSelectPayment: { payment in
+                            selectedUpcomingPaymentForEdit = payment
+                        }
+                    )
 
                     // 5. Desglose de Tarjetas de Crédito Activas (con diseño físico de TDC, chip y relieve)
                     CreditCardsSnapshotCard(cards: creditCards)
+
+                    // 6. Cuentas de Dinero Real (Débito, Efectivo, Ahorros y Préstamos)
+                    LiquidityAccountsSnapshotCard(accounts: liquidityAccounts)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -67,6 +82,15 @@ struct DashboardView: View {
                             .foregroundStyle(Color(hex: "#2563EB"))
                     }
                 }
+            }
+            .sheet(isPresented: $isUpcomingPaymentSheetPresented) {
+                UpcomingPaymentEditSheet(paymentToEdit: nil)
+            }
+            .sheet(item: $selectedUpcomingPaymentForEdit) { payment in
+                UpcomingPaymentEditSheet(paymentToEdit: payment)
+            }
+            .sheet(isPresented: $isTransferSheetPresented) {
+                TransferSheet()
             }
             .onAppear {
                 syncWidgetData()
@@ -225,7 +249,7 @@ struct QuickActionButtonsRow: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             QuickActionButton(
                 title: "+ Gasto",
                 icon: "arrow.up.right",
@@ -253,7 +277,15 @@ struct QuickActionButtonsRow: View {
             }
 
             QuickActionButton(
-                title: "Corte Rápido",
+                title: "Transferir",
+                icon: "arrow.left.arrow.right",
+                color: Color(hex: "#0284C7")
+            ) {
+                appState.isTransferPresented = true
+            }
+
+            QuickActionButton(
+                title: "Corte",
                 icon: "calendar.badge.clock",
                 color: Color(hex: "#8B5CF6")
             ) {
@@ -372,10 +404,15 @@ struct CreditUtilizationCard: View {
 // MARK: - UpcomingPaymentsCard
 struct UpcomingPaymentsCard: View {
     let payments: [UpcomingPayment]
+    var onAddPayment: (() -> Void)? = nil
+    var onSelectPayment: ((UpcomingPayment) -> Void)? = nil
 
     private var pendingPayments: [UpcomingPayment] {
-        payments.filter { $0.status == .pending }
-            .sorted { $0.dueDate < $1.dueDate }
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        return payments.filter { payment in
+            payment.status == .pending && payment.dueDate >= startOfToday
+        }
+        .sorted { $0.dueDate < $1.dueDate }
     }
 
     var body: some View {
@@ -384,16 +421,26 @@ struct UpcomingPaymentsCard: View {
                 Text("Compromisos y Próximos Pagos")
                     .font(.kashBodyBold)
                 Spacer()
-                Text("\(pendingPayments.count) pendientes")
-                    .font(.kashMicro)
-                    .foregroundStyle(.secondary)
+                Button {
+                    onAddPayment?()
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "plus")
+                        Text("Registrar")
+                    }
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "#2563EB").opacity(0.12), in: Capsule())
+                    .foregroundStyle(Color(hex: "#2563EB"))
+                }
             }
 
             if pendingPayments.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(Color(hex: "#10B981"))
-                    Text("¡Al día! No tienes pagos de tarjetas pendientes para este mes.")
+                    Text("¡Al día! No tienes pagos de tarjetas pendientes para este periodo.")
                         .font(.kashCaption)
                         .foregroundStyle(.secondary)
                         .lineLimit(nil)
@@ -402,29 +449,41 @@ struct UpcomingPaymentsCard: View {
                 .padding(.vertical, 4)
             } else {
                 VStack(spacing: 10) {
-                    ForEach(pendingPayments.prefix(3)) { payment in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(payment.card?.name ?? payment.concept)
-                                    .font(.kashCaptionBold)
-                                Text("Vence: \(payment.dueDate.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.kashMicro)
-                                    .foregroundStyle(.secondary)
-                            }
+                    ForEach(pendingPayments.prefix(4)) { payment in
+                        Button {
+                            onSelectPayment?(payment)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(payment.card?.name ?? payment.concept)
+                                        .font(.kashCaptionBold)
+                                        .foregroundStyle(.primary)
+                                    Text("Vence: \(payment.dueDate.spanishShortDate)")
+                                        .font(.kashMicro)
+                                        .foregroundStyle(.secondary)
+                                }
 
-                            Spacer()
+                                Spacer()
 
-                            VStack(alignment: .trailing, spacing: 2) {
-                                PrivacyAwareText(
-                                    amount: payment.fullPaymentNoInterest,
-                                    font: .kashCaptionBold,
-                                    foregroundColor: Color(hex: "#EF4444")
-                                )
-                                Text("No generar intereses")
-                                    .font(.kashMicro)
-                                    .foregroundStyle(.secondary)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    PrivacyAwareText(
+                                        amount: payment.fullPaymentNoInterest,
+                                        font: .kashCaptionBold,
+                                        foregroundColor: Color(hex: "#EF4444")
+                                    )
+                                    Text("No generar intereses")
+                                        .font(.kashMicro)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.leading, 4)
                             }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -476,6 +535,162 @@ struct CreditCardsSnapshotCard: View {
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - LiquidityAccountsSnapshotCard
+struct LiquidityAccountsSnapshotCard: View {
+    let accounts: [LiquidityAccount]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Tus Cuentas de Dinero Real")
+                    .font(.kashBodyBold)
+                Spacer()
+                if !accounts.isEmpty {
+                    Text("\(accounts.filter { $0.isActive }.count) activas")
+                        .font(.kashMicro)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if accounts.isEmpty {
+                Text("No tienes cuentas de liquidez registradas.")
+                    .font(.kashCaption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(accounts.filter { $0.isActive }) { account in
+                            NavigationLink {
+                                LiquidityAccountDetailView(account: account)
+                            } label: {
+                                LiquidityAccountMiniCard(account: account)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 2)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - LiquidityAccountMiniCard (Forma y Estilo Físico de Tarjeta/Cuenta de Dinero Real)
+struct LiquidityAccountMiniCard: View {
+    let account: LiquidityAccount
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: account.colorHex),
+                            Color(hex: account.colorHex).opacity(0.85),
+                            Color.black.opacity(0.55)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            GeometryReader { geo in
+                Circle()
+                    .fill(Color.white.opacity(0.07))
+                    .frame(width: 140, height: 140)
+                    .offset(x: geo.size.width - 60, y: -40)
+
+                Circle()
+                    .fill(Color.white.opacity(0.04))
+                    .frame(width: 110, height: 110)
+                    .offset(x: geo.size.width - 30, y: geo.size.height - 50)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(account.institution.uppercased())
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .tracking(1.1)
+
+                        Text(account.name)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Text(account.accountType.title)
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.white.opacity(0.2), in: Capsule())
+                }
+
+                Spacer(minLength: 8)
+
+                HStack {
+                    if account.accountType == .debit || account.accountType == .savings {
+                        EMVCardChipView(width: 28, height: 20)
+                    } else {
+                        Image(systemName: account.iconName)
+                            .font(.system(size: 20))
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                    Spacer()
+                }
+
+                Spacer(minLength: 8)
+
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(account.accountType == .loan ? "SALDO DEUDOR" : "DISPONIBLE REAL")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .tracking(0.5)
+
+                        PrivacyAwareText(
+                            amount: account.availableBalance,
+                            font: .kashAmountSmall,
+                            foregroundColor: .white
+                        )
+                    }
+
+                    Spacer()
+
+                    if account.accountType == .loan && account.totalInstallments > 0 {
+                        Text("\(account.paidInstallments)/\(account.totalInstallments) cuotas")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                }
+            }
+            .padding(14)
+
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.35), .white.opacity(0.08)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .frame(width: 238, height: 150)
+        .shadow(color: Color(hex: account.colorHex).opacity(0.3), radius: 8, y: 4)
     }
 }
 

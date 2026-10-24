@@ -8,6 +8,17 @@ struct CategoryExpensesDonutChart: View {
     let transactions: [Transaction]
     var periodTitle: String = "Este Mes"
 
+    @State private var selectedSector: String? = nil
+
+    private var totalExpenses: Double {
+        categoryBreakdown.reduce(0.0) { $0 + $1.amount }
+    }
+
+    private var selectedItem: CategorySpendingItem? {
+        guard let name = selectedSector else { return nil }
+        return categoryBreakdown.first(where: { $0.name == name })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -32,36 +43,66 @@ struct CategoryExpensesDonutChart: View {
                             .foregroundStyle(.secondary)
                     }
             } else {
-                HStack(spacing: 20) {
-                    Chart(categoryBreakdown) { item in
-                        SectorMark(
-                            angle: .value("Monto", item.amount),
-                            innerRadius: .ratio(0.60),
-                            angularInset: 1.5
-                        )
-                        .foregroundStyle(Color(hex: item.colorHex))
+                HStack(spacing: 16) {
+                    ZStack {
+                        Chart(categoryBreakdown) { item in
+                            SectorMark(
+                                angle: .value("Monto", item.amount),
+                                innerRadius: .ratio(selectedSector == item.name ? 0.54 : 0.62),
+                                outerRadius: .ratio(selectedSector == item.name ? 1.06 : 1.0),
+                                angularInset: 1.5
+                            )
+                            .foregroundStyle(Color(hex: item.colorHex))
+                            .opacity(selectedSector == nil || selectedSector == item.name ? 1.0 : 0.45)
+                        }
+                        .chartAngleSelection(value: $selectedSector)
+                        .frame(width: 140, height: 140)
+
+                        if let sel = selectedItem, totalExpenses > 0 {
+                            VStack(spacing: 1) {
+                                Text("\(Int((sel.amount / totalExpenses) * 100))%")
+                                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(.primary)
+                                Text(sel.name)
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: 60)
+                            }
+                        }
                     }
-                    .frame(width: 140, height: 140)
 
                     // Ranking Top 5
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(categoryBreakdown.prefix(5)) { item in
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(Color(hex: item.colorHex))
-                                    .frame(width: 8, height: 8)
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    if selectedSector == item.name {
+                                        selectedSector = nil
+                                    } else {
+                                        selectedSector = item.name
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(Color(hex: item.colorHex))
+                                        .frame(width: 8, height: 8)
 
-                                Text(item.name)
-                                    .font(.kashCaption)
-                                    .lineLimit(1)
+                                    Text(item.name)
+                                        .font(.kashCaption)
+                                        .foregroundStyle(selectedSector == item.name ? Color(hex: "#2563EB") : .primary)
+                                        .lineLimit(1)
 
-                                Spacer()
+                                    Spacer()
 
-                                PrivacyAwareText(
-                                    amount: Decimal(item.amount),
-                                    font: .kashCaptionBold
-                                )
+                                    PrivacyAwareText(
+                                        amount: Decimal(item.amount),
+                                        font: .kashCaptionBold
+                                    )
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }

@@ -86,4 +86,30 @@ final class NotificationManager: ObservableObject {
 
         center.add(request)
     }
+
+    /// Solicita autorización si es necesario y envía una notificación local de prueba tras 2 segundos
+    func sendTestNotification() async -> Bool {
+        let granted = isAuthorized ? true : await requestAuthorization()
+        guard granted else { return false }
+
+        let content = UNMutableNotificationContent()
+        content.title = "🔔 Prueba de Notificación KASH"
+        content.body = "¡Excelente! El sistema de notificaciones está funcionando correctamente. Recibirás avisos de cortes y fechas límite."
+        content.sound = .default
+        content.badge = 1
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2.0, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "kash.test.notification.\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            return true
+        } catch {
+            return false
+        }
+    }
 }

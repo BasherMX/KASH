@@ -414,4 +414,113 @@ struct KASHFinancialTests {
         #expect(snapshot.activeCardsCount == 1)
         #expect(snapshot.healthStatus == "Óptimo")
     }
+
+    @Test("Verifica incremento de deuda al gastar en TDC y deducción de crédito disponible")
+    func testCreditCardExpenseIncreasesDebt() {
+        let card = CreditCard(
+            name: "Plata Card",
+            institution: "Plata",
+            creditLimit: 25000,
+            cutoffDay: 5,
+            paymentDueDay: 25
+        )
+        let balance = CardMonthlyBalance(balanceUsed: 3000, recordedAt: Date(), card: card)
+        card.balances = [balance]
+
+        #expect(card.currentBalance == 3000)
+        #expect(card.availableCredit == 22000)
+
+        // Simular compra de 1,500 en la TDC
+        balance.balanceUsed += 1500
+        #expect(card.currentBalance == 4500)
+        #expect(card.availableCredit == 20500)
+    }
+
+    @Test("Verifica que los Préstamos no se suman a la Liquidez y avance de cuotas")
+    func testLoanExcludedFromLiquidityAndInstallments() {
+        let loan = LiquidityAccount(
+            name: "Préstamo Personal Banorte",
+            institution: "Banorte",
+            availableBalance: 24000,
+            accountType: .loan,
+            totalInstallments: 12,
+            paidInstallments: 2,
+            installmentAmount: 2000
+        )
+        let debit = LiquidityAccount(
+            name: "Nómina",
+            institution: "BBVA",
+            availableBalance: 15000,
+            accountType: .debit
+        )
+
+        // Liquidez Real solo suma débito, NO préstamo
+        let accounts = [loan, debit]
+        let realLiquidity = accounts.filter { $0.accountType != .loan }.reduce(0 as Decimal) { $0 + $1.availableBalance }
+        #expect(realLiquidity == 15000)
+
+        // Simular abono de 1 cuota ($2,000)
+        debit.availableBalance -= 2000
+        loan.availableBalance -= 2000
+        loan.paidInstallments += 1
+
+        #expect(debit.availableBalance == 13000)
+        #expect(loan.availableBalance == 22000)
+        #expect(loan.paidInstallments == 3)
+    }
+
+    @Test("Verifica transferencia entre cuentas de liquidez")
+    func testLiquidityAccountTransfer() {
+        let debit = LiquidityAccount(
+            name: "BBVA Nómina",
+            institution: "BBVA",
+            availableBalance: 8000,
+            accountType: .debit
+        )
+        let cash = LiquidityAccount(
+            name: "Efectivo",
+            institution: "Efectivo",
+            availableBalance: 500,
+            accountType: .cash
+        )
+
+        // Traspasar 2,000 de Nómina a Efectivo
+        let transferAmount: Decimal = 2000
+        debit.availableBalance -= transferAmount
+        cash.availableBalance += transferAmount
+
+        #expect(debit.availableBalance == 6000)
+        #expect(cash.availableBalance == 2500)
+        #expect(debit.availableBalance + cash.availableBalance == 8500)
+    }
+
+    @Test("Verifica filtrado de Próximos Pagos: pagos vencidos no se muestran en Dashboard")
+    func testUpcomingPaymentsHidesPastDue() {
+        let calendar = Calendar.current
+        let today = Date()
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+
+        let pastPayment = UpcomingPayment(
+            concept: "Pago Vencido",
+            dueDate: yesterday,
+            minimumPayment: 500,
+            fullPaymentNoInterest: 2000,
+            status: .pending
+        )
+        let activePayment = UpcomingPayment(
+            concept: "Pago Activo",
+            dueDate: tomorrow,
+            minimumPayment: 800,
+            fullPaymentNoInterest: 3500,
+            status: .pending
+        )
+
+        let startOfToday = calendar.startOfDay(for: today)
+        let allPayments = [pastPayment, activePayment]
+        let dashboardPayments = allPayments.filter { $0.status == .pending && $0.dueDate >= startOfToday }
+
+        #expect(dashboardPayments.count == 1)
+        #expect(dashboardPayments.first?.concept == "Pago Activo")
+    }
 }

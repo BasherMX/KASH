@@ -69,6 +69,9 @@ struct LiquidityAccountDTO: Codable {
     let iconName: String
     let isActive: Bool
     let updatedAt: String
+    let totalInstallments: Int?
+    let paidInstallments: Int?
+    let installmentAmount: Double?
 }
 
 struct CategoryDTO: Codable {
@@ -105,6 +108,9 @@ struct UpcomingPaymentDTO: Codable {
     let fullPaymentNoInterest: Double
     let actualAmountToPay: Double
     let statusRaw: String
+    let reminderDaysBefore: Int?
+    let targetMonth: Int?
+    let targetYear: Int?
 }
 
 struct TransactionDTO: Codable {
@@ -117,5 +123,6 @@ struct TransactionDTO: Codable {
     let cardId: String?
     let liquidityAccountId: String?
     let destinationCardId: String?
+    let destinationLiquidityAccountId: String?
     let categoryId: String?
 }
