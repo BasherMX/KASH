@@ -55,7 +55,11 @@ jobs:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild_test.log || {
+              echo "::warning::Unit tests output:"
+              grep -E "Test|failed|passed|Expectation" xcodebuild_test.log | tail -n 40 || true
+              exit 1
+            }
 
           echo "=== Verifying WidgetKit Extension Registration on iOS Simulator ==="
           SIM_APP_PATH=$(find build/Build/Products -name "KASH.app" -type d | grep -i "iphonesimulator" | head -n 1)

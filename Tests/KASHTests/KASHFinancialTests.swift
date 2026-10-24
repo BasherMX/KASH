@@ -4,7 +4,7 @@ import SwiftData
 @testable import KASH
 
 // MARK: - Suite de Pruebas Unitarias para KASH (Swift Testing)
-@Suite("KASH Financial Logic & Golden Rule Tests")
+@Suite("KASH Financial Logic & Golden Rule Tests", .serialized)
 struct KASHFinancialTests {
 
     @Test("Verifica la Regla de Oro: El crédito disponible NO es dinero propio")

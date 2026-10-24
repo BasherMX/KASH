@@ -280,13 +280,13 @@ public enum KASHSharedStore {
         }
 
         for groupId in candidateAppGroupIds {
-            if let str = UserDefaults(suiteName: groupId)?.string(forKey: pendingActionKey) {
+            if let str = UserDefaults(suiteName: groupId)?.string(forKey: pendingActionKey)?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty {
                 if foundRaw == nil { foundRaw = str }
                 UserDefaults(suiteName: groupId)?.removeObject(forKey: pendingActionKey)
             }
         }
 
-        if let str = UserDefaults.standard.string(forKey: pendingActionKey) {
+        if let str = UserDefaults.standard.string(forKey: pendingActionKey)?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty {
             if foundRaw == nil { foundRaw = str }
             UserDefaults.standard.removeObject(forKey: pendingActionKey)
         }
