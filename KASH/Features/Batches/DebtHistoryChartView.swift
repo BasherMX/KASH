@@ -33,17 +33,30 @@ struct DebtHistoryChartView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Evolución de Deuda")
                         .font(.kashBodyBold)
-                    Text(selectedItem != nil ? "Toca o desliza para inspeccionar" : "Historial por corte mensual")
-                        .font(.kashCaption)
-                        .foregroundStyle(.secondary)
+                    if let sel = selectedItem {
+                        HStack(spacing: 6) {
+                            Text(sel.date.spanishMonthAndYear)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Color(hex: "#2563EB"))
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            PrivacyAwareText(
+                                amount: Decimal(sel.amount),
+                                font: .kashCaptionBold,
+                                foregroundColor: Color(hex: "#2563EB")
+                            )
+                        }
+                    } else {
+                        Text("Historial por corte mensual")
+                            .font(.kashCaption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
 
-                if let sel = selectedItem {
+                if selectedItem != nil {
                     Button {
-                        withAnimation {
-                            self.selectedDate = nil
-                        }
+                        selectedDate = nil
                     } label: {
                         Text("Limpiar")
                             .font(.kashMicro)
@@ -51,6 +64,7 @@ struct DebtHistoryChartView: View {
                     }
                 }
             }
+            .frame(height: 38, alignment: .leading)
 
             if records.isEmpty {
                 RoundedRectangle(cornerRadius: 12)
@@ -120,19 +134,19 @@ struct DebtHistoryChartView: View {
                         RuleMark(x: .value("Selección", sel.date))
                             .foregroundStyle(Color(hex: "#2563EB").opacity(0.7))
                             .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                            .annotation(position: .top, spacing: 6) {
+                            .annotation(position: .top, overflowResolution: .init(x: .fit(to: .plot), y: .disabled)) {
                                 VStack(spacing: 2) {
-                                    Text(sel.date.spanishMonthAndYear)
-                                        .font(.system(size: 11, weight: .bold))
+                                    Text(sel.date.spanishShortMonthName)
+                                        .font(.system(size: 10, weight: .bold))
                                         .foregroundStyle(.white)
                                     Text(Decimal(sel.amount).formatted(.currency(code: "MXN")))
-                                        .font(.system(size: 12, weight: .heavy))
+                                        .font(.system(size: 11, weight: .heavy))
                                         .foregroundStyle(.white)
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 8))
-                                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 6))
+                                .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
                             }
 
                         PointMark(

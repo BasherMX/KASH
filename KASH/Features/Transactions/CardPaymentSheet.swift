@@ -30,6 +30,20 @@ struct CardPaymentSheet: View {
         creditCards.first(where: { $0.id == selectedDestinationCardId })
     }
 
+    private var parsedAmount: Decimal {
+        CurrencyInputParser.parseDecimal(amountString)
+    }
+
+    private var isAmountExceedingBalance: Bool {
+        guard let source = selectedSourceAccount else { return false }
+        return parsedAmount > source.availableBalance
+    }
+
+    private var isSourceZeroBalance: Bool {
+        guard let source = selectedSourceAccount else { return false }
+        return source.availableBalance <= 0
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -37,7 +51,7 @@ struct CardPaymentSheet: View {
                 Section {
                     Picker("Cuenta Origen", selection: $selectedSourceAccountId) {
                         Text("Selecciona cuenta con fondos").tag(Optional<UUID>.none)
-                        ForEach(liquidityAccounts.filter { $0.isActive && $0.accountType != .loan }) { acc in
+                        ForEach(liquidityAccounts.filter { $0.isActive && $0.accountType != .loan && $0.availableBalance > 0 }) { acc in
                             HStack {
                                 Text(acc.name)
                                 Spacer()
@@ -120,6 +134,22 @@ struct CardPaymentSheet: View {
                     DatePicker("Fecha del Pago", selection: $paymentDate, displayedComponents: [.date])
 
                     TextField("Notas del abono (opcional)", text: $notes)
+
+                    if isSourceZeroBalance {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("La cuenta de débito seleccionada no tiene fondos ($0.00).")
+                        }
+                        .font(.kashCaption)
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                    } else if isAmountExceedingBalance {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("El monto del abono excede el saldo disponible en la cuenta origen.")
+                        }
+                        .font(.kashCaption)
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                    }
                 } header: {
                     Label("Monto del Abono", systemImage: "dollarsign.circle.fill")
                 }
@@ -146,7 +176,10 @@ struct CardPaymentSheet: View {
                     .disabled(
                         selectedSourceAccountId == nil ||
                         selectedDestinationCardId == nil ||
-                        amountString.isEmpty
+                        amountString.isEmpty ||
+                        parsedAmount <= 0 ||
+                        isSourceZeroBalance ||
+                        isAmountExceedingBalance
                     )
                 }
             }

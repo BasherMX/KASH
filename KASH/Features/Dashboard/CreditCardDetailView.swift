@@ -450,17 +450,31 @@ private struct CardDebtHistoryChart: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Historial de Avance de Deuda")
                         .font(.kashBodyBold)
-                    Text(selectedBalance != nil ? "Toca o desliza para inspeccionar" : "Evolución saldo deudor en cada corte mensual")
-                        .font(.kashMicro)
-                        .foregroundStyle(.secondary)
+                    if let sel = selectedBalance {
+                        let date = sel.monthlyRecord?.periodDate ?? sel.recordedAt
+                        HStack(spacing: 6) {
+                            Text(date.spanishMonthAndYear)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Color(hex: colorHex))
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            PrivacyAwareText(
+                                amount: sel.balanceUsed,
+                                font: .kashCaptionBold,
+                                foregroundColor: Color(hex: colorHex)
+                            )
+                        }
+                    } else {
+                        Text("Evolución saldo deudor en cada corte mensual")
+                            .font(.kashMicro)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
 
                 if selectedBalance != nil {
                     Button {
-                        withAnimation {
-                            self.selectedDate = nil
-                        }
+                        selectedDate = nil
                     } label: {
                         Text("Limpiar")
                             .font(.kashMicro)
@@ -468,6 +482,7 @@ private struct CardDebtHistoryChart: View {
                     }
                 }
             }
+            .frame(height: 38, alignment: .leading)
 
             if balances.isEmpty {
                 VStack(spacing: 8) {
@@ -535,19 +550,19 @@ private struct CardDebtHistoryChart: View {
                         RuleMark(x: .value("Selección", date))
                             .foregroundStyle(Color(hex: colorHex).opacity(0.7))
                             .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                            .annotation(position: .top, spacing: 6) {
+                            .annotation(position: .top, overflowResolution: .init(x: .fit(to: .plot), y: .disabled)) {
                                 VStack(spacing: 2) {
-                                    Text(date.spanishMonthAndYear)
-                                        .font(.system(size: 11, weight: .bold))
+                                    Text(date.spanishShortMonthName)
+                                        .font(.system(size: 10, weight: .bold))
                                         .foregroundStyle(.white)
                                     Text(sel.balanceUsed.formatted(.currency(code: "MXN")))
-                                        .font(.system(size: 12, weight: .heavy))
+                                        .font(.system(size: 11, weight: .heavy))
                                         .foregroundStyle(.white)
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 8))
-                                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 6))
+                                .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
                             }
 
                         PointMark(
@@ -819,7 +834,7 @@ private struct CardRecentTransactionsSection: View {
                                                     Text(tx.concept)
                                                         .font(.kashCaptionBold)
                                                         .foregroundStyle(.primary)
-                                                    Text(tx.transactionDate.formatted(date: .abbreviated, time: .shortened))
+                                                    Text(tx.transactionDate.spanishShortDate)
                                                         .font(.kashMicro)
                                                         .foregroundStyle(.secondary)
                                                 }

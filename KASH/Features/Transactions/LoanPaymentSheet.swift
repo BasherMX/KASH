@@ -23,7 +23,7 @@ struct LoanPaymentSheet: View {
     }
 
     private var fundingAccounts: [LiquidityAccount] {
-        liquidityAccounts.filter { $0.isActive && $0.accountType != .loan }
+        liquidityAccounts.filter { $0.isActive && $0.accountType != .loan && $0.availableBalance > 0 }
     }
 
     private var selectedLoan: LiquidityAccount? {
@@ -32,6 +32,20 @@ struct LoanPaymentSheet: View {
 
     private var selectedSourceAccount: LiquidityAccount? {
         liquidityAccounts.first(where: { $0.id == selectedSourceAccountId })
+    }
+
+    private var parsedAmount: Decimal {
+        CurrencyInputParser.parseDecimal(amountString)
+    }
+
+    private var isAmountExceedingBalance: Bool {
+        guard let source = selectedSourceAccount else { return false }
+        return parsedAmount > source.availableBalance
+    }
+
+    private var isSourceZeroBalance: Bool {
+        guard let source = selectedSourceAccount else { return false }
+        return source.availableBalance <= 0
     }
 
     var body: some View {
@@ -136,6 +150,22 @@ struct LoanPaymentSheet: View {
                     DatePicker("Fecha de Abono", selection: $paymentDate, displayedComponents: [.date])
 
                     TextField("Notas adicionales (opcional)", text: $notes)
+
+                    if isSourceZeroBalance {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("La cuenta de origen no tiene fondos ($0.00).")
+                        }
+                        .font(.kashCaption)
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                    } else if isAmountExceedingBalance {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("El monto del abono excede el saldo de la cuenta de origen.")
+                        }
+                        .font(.kashCaption)
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                    }
                 } header: {
                     Label("Monto a Abonar", systemImage: "dollarsign.circle.fill")
                 }
@@ -159,7 +189,14 @@ struct LoanPaymentSheet: View {
                     Button("Abonar") {
                         executeLoanPayment()
                     }
-                    .disabled(selectedLoanId == nil || selectedSourceAccountId == nil || amountString.isEmpty)
+                    .disabled(
+                        selectedLoanId == nil ||
+                        selectedSourceAccountId == nil ||
+                        amountString.isEmpty ||
+                        parsedAmount <= 0 ||
+                        isSourceZeroBalance ||
+                        isAmountExceedingBalance
+                    )
                 }
             }
             .onAppear {

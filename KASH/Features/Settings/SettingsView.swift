@@ -70,21 +70,67 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // SECCIÓN 1: SEGURIDAD & PRIVACIDAD
+                // SECCIÓN 1: FINANZAS PERSONALES & CAPACIDAD DE PAGO
                 Section {
-                    Toggle("Face ID / Touch ID Obligatorio", isOn: $biometricLockMandatory)
-                        .onChange(of: biometricLockMandatory) { _, newValue in
-                            let s = ensureSettings()
-                            s.biometricLockMandatory = newValue
-                            try? modelContext.save()
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Ingreso Mensual Neto")
+                            if showIncomeSavedFeedback {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                    Text("Guardado")
+                                }
+                                .font(.kashMicro)
+                                .foregroundStyle(Color(hex: "#10B981"))
+                            }
                         }
+                        Spacer()
+                        HStack(spacing: 2) {
+                            Text("$")
+                                .foregroundStyle(.secondary)
+                            TextField("0.00", text: $monthlyIncomeString)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .focused($isMonthlyIncomeFocused)
+                                .frame(minWidth: 100)
+                                .onChange(of: isMonthlyIncomeFocused) { wasFocused, isFocused in
+                                    if wasFocused && !isFocused {
+                                        saveMonthlyIncome(showFeedback: true)
+                                    } else {
+                                        saveMonthlyIncome(showFeedback: false)
+                                    }
+                                }
+                                .onChange(of: monthlyIncomeString) { _, _ in
+                                    if isMonthlyIncomeFocused {
+                                        saveMonthlyIncome(showFeedback: true)
+                                    }
+                                }
+                                .onSubmit {
+                                    saveMonthlyIncome(showFeedback: true)
+                                }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Capacidad de pago de deuda:")
+                            Spacer()
+                            Text("\(Int(debtAllocationPercentage * 100))%")
+                                .font(.kashBodyBold)
+                                .foregroundStyle(Color(hex: "#2563EB"))
+                        }
+                        Slider(value: $debtAllocationPercentage, in: 0.1...1.0, step: 0.05)
+                            .onChange(of: debtAllocationPercentage) { _, newValue in
+                                let s = ensureSettings()
+                                s.debtAllocationPercentage = newValue
+                                try? modelContext.save()
+                            }
+                    }
                 } header: {
-                    Label("Seguridad & Privacidad", systemImage: "shield.lefthalf.filled")
-                } footer: {
-                    Text("Por defecto, la autenticación biométrica está desactivada y solo se solicitará si decides activarla aquí. Puedes ocultar o mostrar los saldos en cualquier momento usando el ícono de ojo 👁️ en las barras superiores.")
+                    Label("Finanzas Personales", systemImage: "banknote.fill")
                 }
 
-                // SECCIÓN 2: CATÁLOGOS DE CUENTAS Y PASIVOS
+                // SECCIÓN 2: CATÁLOGOS DE CUENTAS
                 Section {
                     NavigationLink {
                         CreditCardsListView()
@@ -95,7 +141,7 @@ struct SettingsView: View {
                     NavigationLink {
                         LiquidityAccountsListView()
                     } label: {
-                        Label("Cuentas de Débito, Efectivo y Préstamos", systemImage: "banknote.fill")
+                        Label("Cuentas de Débito, Efectivo y Préstamos", systemImage: "wallet.pass.fill")
                     }
 
                     NavigationLink {
@@ -107,36 +153,19 @@ struct SettingsView: View {
                     Label("Catálogos y Cuentas", systemImage: "tray.full.fill")
                 }
 
-                // SECCIÓN 3: WIDGETS DE PANTALLA DE INICIO Y BLOQUEO
+                // SECCIÓN 3: SEGURIDAD
                 Section {
-                    Button {
-                        syncAndReloadWidgets()
-                        isShowingWidgetsSheet = true
-                    } label: {
-                        HStack {
-                            Label("Configurar y Sincronizar Widgets", systemImage: "rectangle.grid.2x2.fill")
-                            Spacer()
-                            Text(isWidgetExtensionEmbedded ? "Activos" : "Verificar")
-                                .font(.kashMicro)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(
-                                    (isWidgetExtensionEmbedded ? Color(hex: "#10B981") : Color(hex: "#F59E0B")).opacity(0.15),
-                                    in: Capsule()
-                                )
-                                .foregroundStyle(isWidgetExtensionEmbedded ? Color(hex: "#10B981") : Color(hex: "#F59E0B"))
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                    Toggle("Face ID / Touch ID Obligatorio", isOn: $biometricLockMandatory)
+                        .onChange(of: biometricLockMandatory) { _, newValue in
+                            let s = ensureSettings()
+                            s.biometricLockMandatory = newValue
+                            try? modelContext.save()
                         }
-                    }
                 } header: {
-                    Label("Widgets iOS (Inicio y Bloqueo)", systemImage: "sparkles.rectangle.stack.fill")
-                } footer: {
-                    Text("Incluye 3 widgets nativos (Deuda y Acciones 2x2/4x2/4x4, Próximos Pagos y Pantalla de Bloqueo). Toca aquí para forzar su indexación en la galería de iOS.")
+                    Label("Seguridad", systemImage: "shield.lefthalf.filled")
                 }
 
-                // SECCIÓN 4: NOTIFICACIONES Y RECORDATORIOS
+                // SECCIÓN 4: NOTIFICACIONES & WIDGETS
                 Section {
                     Picker("Avisar vencimiento de pago con", selection: $paymentReminderDays) {
                         Text("1 día de anticipación").tag(1)
@@ -172,81 +201,39 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(isTestingNotification)
-                } header: {
-                    Label("Notificaciones y Recordatorios", systemImage: "bell.badge.fill")
-                } footer: {
-                    Text("Los días de corte se configuran de forma específica en cada tarjeta. Toca 'Probar Notificaciones' para verificar que iOS tenga los permisos habilitados.")
-                }
 
-                // SECCIÓN 5: PARÁMETROS DE SIMULADORES Y FINANZAS
-                Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Ingreso Mensual Neto")
-                            if showIncomeSavedFeedback {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                    Text("Guardado automáticamente")
-                                }
-                                .font(.kashMicro)
-                                .foregroundStyle(Color(hex: "#10B981"))
-                            }
-                        }
-                        Spacer()
-                        HStack(spacing: 2) {
-                            Text("$")
-                                .foregroundStyle(.secondary)
-                            TextField("0.00", text: $monthlyIncomeString)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                                .focused($isMonthlyIncomeFocused)
-                                .frame(minWidth: 100)
-                                .onChange(of: isMonthlyIncomeFocused) { wasFocused, isFocused in
-                                    if wasFocused && !isFocused {
-                                        saveMonthlyIncome(showFeedback: true)
-                                    } else {
-                                        saveMonthlyIncome(showFeedback: false)
-                                    }
-                                }
-                                .onChange(of: monthlyIncomeString) { _, _ in
-                                    if isMonthlyIncomeFocused {
-                                        saveMonthlyIncome(showFeedback: true)
-                                    }
-                                }
-                                .onSubmit {
-                                    saveMonthlyIncome(showFeedback: true)
-                                }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
+                    Button {
+                        syncAndReloadWidgets()
+                        isShowingWidgetsSheet = true
+                    } label: {
                         HStack {
-                            Text("% Sueldo para amortización:")
+                            Label("Sincronizar Widgets", systemImage: "rectangle.grid.2x2.fill")
                             Spacer()
-                            Text("\(Int(debtAllocationPercentage * 100))%")
-                                .font(.kashBodyBold)
-                                .foregroundStyle(Color(hex: "#2563EB"))
+                            Text(isWidgetExtensionEmbedded ? "Activos" : "Verificar")
+                                .font(.kashMicro)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    (isWidgetExtensionEmbedded ? Color(hex: "#10B981") : Color(hex: "#F59E0B")).opacity(0.15),
+                                    in: Capsule()
+                                )
+                                .foregroundStyle(isWidgetExtensionEmbedded ? Color(hex: "#10B981") : Color(hex: "#F59E0B"))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
                         }
-                        Slider(value: $debtAllocationPercentage, in: 0.1...1.0, step: 0.05)
-                            .onChange(of: debtAllocationPercentage) { _, newValue in
-                                let s = ensureSettings()
-                                s.debtAllocationPercentage = newValue
-                                try? modelContext.save()
-                            }
                     }
                 } header: {
-                    Label("Parámetros y Capacidad de Pago", systemImage: "chart.line.uptrend.xyaxis")
-                } footer: {
-                    Text("El ingreso mensual se guarda automáticamente al editar o quitar el foco del campo.")
+                    Label("Notificaciones & Widgets", systemImage: "bell.badge.fill")
                 }
 
-                // SECCIÓN 6: COPIAS DE SEGURIDAD Y PORTABILIDAD
+                // SECCIÓN 5: COPIAS DE SEGURIDAD Y PORTABILIDAD
                 Section {
                     Button {
                         exportBackup()
                     } label: {
                         HStack {
-                            Label("Exportar Respaldo Universal (JSON)", systemImage: "square.and.arrow.up.fill")
+                            Label("Exportar Respaldo (JSON)", systemImage: "square.and.arrow.up.fill")
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 12))
@@ -266,12 +253,10 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Label("Copias de Seguridad y Portabilidad", systemImage: "arrow.triangle.2.circlepath")
-                } footer: {
-                    Text("Los respaldos son 100% compatibles con JSON universal sin bloqueo de proveedor. Puedes guardar en Archivos, compartir vía AirDrop o restaurar en cualquier momento.")
+                    Label("Copias de Seguridad", systemImage: "arrow.triangle.2.circlepath")
                 }
 
-                // SECCIÓN 7: ZONA DE PELIGRO - BORRADO TOTAL
+                // SECCIÓN 6: ZONA DE PELIGRO
                 Section {
                     Button(role: .destructive) {
                         isShowingDeleteConfirmationAlert = true
@@ -288,7 +273,7 @@ struct SettingsView: View {
                     Label("Zona de Peligro", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(Color.red)
                 } footer: {
-                    Text("⚠️ Esta acción es irreversible. Se eliminarán permanentemente todas tus tarjetas, cuentas, movimientos, cortes históricos y configuraciones. No se podrán recuperar.")
+                    Text("⚠️ Esta acción es irreversible. Se eliminarán permanentemente todos tus datos de KASH.")
                         .font(.kashMicro)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
@@ -305,7 +290,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Control TDC • KASH v1.4.0 (Build 6)")
+                        Text("Control TDC • KASH v1.5.0 (Build 7)")
                             .font(.kashMicro)
                             .foregroundStyle(.tertiary)
 

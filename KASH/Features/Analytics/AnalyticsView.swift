@@ -6,6 +6,7 @@ struct AnalyticsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var transactions: [Transaction]
     @Query private var creditCards: [CreditCard]
+    @Query private var liquidityAccounts: [LiquidityAccount]
     @Query private var monthlyRecords: [MonthlyRecord]
     @Query private var userSettingsList: [UserSettings]
 
@@ -49,23 +50,31 @@ struct AnalyticsView: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        // 1. Donut Chart de Gastos por Categoría (filtrado por mes o histórico)
+                        // 1. Tendencias de Compra, Hábitos y Predicción de Gastos
+                        PurchaseTrendsAnalyticsView(
+                            transactions: filteredTransactions,
+                            creditCards: creditCards,
+                            liquidityAccounts: liquidityAccounts,
+                            periodTitle: periodFilter.periodTitle
+                        )
+
+                        // 2. Donut Chart de Gastos por Categoría (filtrado por mes o histórico)
                         CategoryExpensesDonutChart(
                             transactions: filteredTransactions,
                             periodTitle: periodFilter.periodTitle
                         )
 
-                        // 2. Velocidad de Endeudamiento (Burn Rate vs Payoff Rate del periodo seleccionado)
+                        // 3. Velocidad de Endeudamiento (Burn Rate vs Payoff Rate del periodo seleccionado)
                         BurnRateIndicatorView(
                             monthlyExpenses: periodExpenses,
                             monthlyPayments: periodPayments,
                             periodTitle: periodFilter.periodTitle
                         )
 
-                        // 3. Detector de Concentración de Deuda & Avalancha
+                        // 4. Detector de Concentración de Deuda & Avalancha
                         DebtConcentrationView(cards: creditCards)
 
-                        // 4. Proyección Deuda Cero ($0.00)
+                        // 5. Proyección Deuda Cero ($0.00)
                         ZeroDebtEstimatorView(
                             totalDebt: periodOrCurrentDebt,
                             monthlyIncome: currentSettings.monthlyIncome,
@@ -77,6 +86,7 @@ struct AnalyticsView: View {
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Inteligencia Financiera")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     PrivacyToggleButton()

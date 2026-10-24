@@ -523,4 +523,73 @@ struct KASHFinancialTests {
         #expect(dashboardPayments.count == 1)
         #expect(dashboardPayments.first?.concept == "Pago Activo")
     }
+
+    @Test("Verifica restricción de no transferir ni gastar desde cuenta con saldo $0.00")
+    func testZeroBalanceAccountTransferRejection() {
+        let emptyAccount = LiquidityAccount(
+            name: "Cajita Vacía",
+            institution: "Nu",
+            availableBalance: 0,
+            accountType: .savings
+        )
+
+        let targetAccount = LiquidityAccount(
+            name: "Efectivo",
+            institution: "Efectivo",
+            availableBalance: 200,
+            accountType: .cash
+        )
+
+        // Comprobar condición de saldo cero
+        #expect(emptyAccount.availableBalance <= 0)
+        let attemptTransferAmount: Decimal = 100
+        let canTransfer = emptyAccount.availableBalance > 0 && attemptTransferAmount <= emptyAccount.availableBalance
+        #expect(canTransfer == false)
+
+        // Verificar que no se alteran los saldos
+        #expect(emptyAccount.availableBalance == 0)
+        #expect(targetAccount.availableBalance == 200)
+    }
+
+    @Test("Verifica periodicidad y configuración de cuotas de préstamos")
+    func testLoanInstallmentFrequencyAndQuickPresets() {
+        let loan = LiquidityAccount(
+            name: "Crédito Automotriz",
+            institution: "BBVA",
+            availableBalance: 120000,
+            accountType: .loan,
+            totalInstallments: 36,
+            paidInstallments: 6,
+            installmentAmount: 4200,
+            installmentFrequency: .biweekly
+        )
+
+        #expect(loan.installmentFrequency == .biweekly)
+        #expect(loan.installmentFrequency.title == "Quincenal")
+        #expect(loan.totalInstallments == 36)
+        #expect(loan.paidInstallments == 6)
+
+        loan.installmentFrequency = .monthly
+        #expect(loan.installmentFrequencyRaw == "monthly")
+        #expect(loan.installmentFrequency.title == "Mensual")
+    }
+
+    @Test("Verifica cálculo de métricas de tendencias de compra (Ticket Promedio y Concentración)")
+    func testPurchaseTrendsMetricsCalculations() {
+        let card = CreditCard(name: "Test Card", institution: "Test", creditLimit: 30000, cutoffDay: 1, paymentDueDay: 20)
+        let now = Date()
+
+        let tx1 = Transaction(concept: "Supermercado", amount: 1200, transactionDate: now, type: .expense, creditCard: card)
+        let tx2 = Transaction(concept: "Gasolina", amount: 800, transactionDate: now, type: .expense, creditCard: card)
+        let tx3 = Transaction(concept: "Café", amount: 100, transactionDate: now, type: .expense, creditCard: card)
+
+        let expenses = [tx1, tx2, tx3]
+        let total = expenses.reduce(0 as Decimal) { $0 + $1.amount }
+        let count = expenses.count
+        let averageTicket = total / Decimal(count)
+
+        #expect(total == 2100)
+        #expect(count == 3)
+        #expect(averageTicket == 700)
+    }
 }

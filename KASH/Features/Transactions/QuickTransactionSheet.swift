@@ -79,6 +79,20 @@ struct QuickTransactionSheet: View {
         }
     }
 
+    private var selectedLiquidityAccount: LiquidityAccount? {
+        liquidityAccounts.first(where: { $0.id == selectedAccountId })
+    }
+
+    private var parsedAmount: Decimal {
+        CurrencyInputParser.parseDecimal(amountString)
+    }
+
+    private var isLiquidityExpenseInvalid: Bool {
+        guard transactionType == .expense && selectedPaymentMethod == .liquidity else { return false }
+        guard let acc = selectedLiquidityAccount else { return true }
+        return acc.availableBalance <= 0 || (parsedAmount > 0 && parsedAmount > acc.availableBalance)
+    }
+
     private var sortedCategories: [TransactionCategory] {
         let filtered = categories.filter { $0.categoryType == transactionType }
         return filtered.sorted {
@@ -232,6 +246,24 @@ struct QuickTransactionSheet: View {
                                     .tag(Optional(acc.id))
                                 }
                             }
+
+                            if let acc = selectedLiquidityAccount {
+                                if acc.availableBalance <= 0 {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                        Text("Esta cuenta no tiene saldo disponible ($0.00). Selecciona otra cuenta o registra un ingreso.")
+                                    }
+                                    .font(.kashCaption)
+                                    .foregroundStyle(Color(hex: "#EF4444"))
+                                } else if parsedAmount > acc.availableBalance {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                        Text("El gasto ($\(parsedAmount)) excede el disponible en cuenta ($\(acc.availableBalance)).")
+                                    }
+                                    .font(.kashCaption)
+                                    .foregroundStyle(Color(hex: "#EF4444"))
+                                }
+                            }
                         }
                     }
                 } else {
@@ -296,7 +328,12 @@ struct QuickTransactionSheet: View {
                     Button("Guardar") {
                         saveTransaction()
                     }
-                    .disabled(concept.trimmingCharacters(in: .whitespaces).isEmpty || amountString.isEmpty)
+                    .disabled(
+                        concept.trimmingCharacters(in: .whitespaces).isEmpty ||
+                        amountString.isEmpty ||
+                        parsedAmount <= 0 ||
+                        isLiquidityExpenseInvalid
+                    )
                 }
             }
             .onAppear {

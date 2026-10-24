@@ -18,7 +18,7 @@ struct TransferSheet: View {
     @State private var notes: String = ""
 
     private var availableSourceAccounts: [LiquidityAccount] {
-        liquidityAccounts.filter { $0.isActive && $0.accountType != .loan }
+        liquidityAccounts.filter { $0.isActive && $0.accountType != .loan && $0.availableBalance > 0 }
     }
 
     private var availableDestinationAccounts: [LiquidityAccount] {
@@ -31,6 +31,20 @@ struct TransferSheet: View {
 
     private var selectedDestinationAccount: LiquidityAccount? {
         liquidityAccounts.first(where: { $0.id == destinationAccountId })
+    }
+
+    private var parsedAmount: Decimal {
+        CurrencyInputParser.parseDecimal(amountString)
+    }
+
+    private var isAmountExceedingBalance: Bool {
+        guard let source = selectedSourceAccount else { return false }
+        return parsedAmount > source.availableBalance
+    }
+
+    private var isSourceZeroBalance: Bool {
+        guard let source = selectedSourceAccount else { return false }
+        return source.availableBalance <= 0
     }
 
     var body: some View {
@@ -106,6 +120,22 @@ struct TransferSheet: View {
                     DatePicker("Fecha", selection: $transferDate, displayedComponents: [.date])
 
                     TextField("Concepto o notas (opcional)", text: $notes)
+
+                    if isSourceZeroBalance {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("La cuenta origen no tiene fondos ($0.00). No es posible transferir.")
+                        }
+                        .font(.kashCaption)
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                    } else if isAmountExceedingBalance {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("El monto excede el saldo disponible en la cuenta origen.")
+                        }
+                        .font(.kashCaption)
+                        .foregroundStyle(Color(hex: "#EF4444"))
+                    }
                 } header: {
                     Label("Monto a Traspasar", systemImage: "dollarsign.circle.fill")
                 }
@@ -129,7 +159,14 @@ struct TransferSheet: View {
                     Button("Transferir") {
                         executeTransfer()
                     }
-                    .disabled(sourceAccountId == nil || destinationAccountId == nil || amountString.isEmpty)
+                    .disabled(
+                        sourceAccountId == nil ||
+                        destinationAccountId == nil ||
+                        amountString.isEmpty ||
+                        parsedAmount <= 0 ||
+                        isAmountExceedingBalance ||
+                        isSourceZeroBalance
+                    )
                 }
             }
             .onAppear {

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 // MARK: - LiquidityAccountDetailView
 /// Vista de detalle exhaustiva para cuentas de dinero real (Débito, Efectivo, Ahorros y Préstamos)
@@ -133,6 +134,10 @@ struct LiquidityAccountDetailView: View {
                     }
                 }
                 .padding(.horizontal)
+
+                // 4.5. Gráfica de Evolución de Saldo y Flujos
+                AccountFlowHistoryChart(account: account, transactions: accountTransactions)
+                    .padding(.horizontal)
 
                 // 5. Filtro de Periodo
                 PeriodFilterHeaderView(selection: $periodFilter)
@@ -463,5 +468,199 @@ private struct MetricTile: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - AccountFlowHistoryChart
+private struct AccountFlowHistoryChart: View {
+    let account: LiquidityAccount
+    let transactions: [Transaction]
+
+    @State private var selectedDate: Date? = nil
+
+    private struct TrajectoryPoint: Identifiable {
+        let id: UUID
+        let date: Date
+        let balance: Double
+        let label: String
+    }
+
+    private var trajectoryPoints: [TrajectoryPoint] {
+        let sorted = transactions.sorted { $0.transactionDate < $1.transactionDate }
+        let currentBal = NSDecimalNumber(decimal: account.availableBalance).doubleValue
+
+        guard !sorted.isEmpty else {
+            return [
+                TrajectoryPoint(id: UUID(), date: Date(), balance: currentBal, label: "Saldo Actual")
+            ]
+        }
+
+        // Calcular hacia atrás desde el saldo actual
+        // Para cada transacción desde la más reciente:
+        var netDeltas: [Double] = []
+        for tx in sorted {
+            let amountVal = NSDecimalNumber(decimal: tx.amount).doubleValue
+            let isOut = (tx.type == .expense || tx.type == .cardPayment || (tx.type == .transfer && tx.liquidityAccount?.id == account.id))
+            netDeltas.append(isOut ? -amountVal : amountVal)
+        }
+
+        let totalDelta = netDeltas.reduce(0, +)
+        var running = currentBal - totalDelta
+
+        var points: [TrajectoryPoint] = []
+        if let firstDate = sorted.first?.transactionDate {
+            let initialDate = Calendar.current.date(byAdding: .day, value: -1, to: firstDate) ?? firstDate
+            points.append(TrajectoryPoint(id: UUID(), date: initialDate, balance: running, label: "Inicio"))
+        }
+
+        for (idx, tx) in sorted.enumerated() {
+            running += netDeltas[idx]
+            points.append(
+                TrajectoryPoint(
+                    id: tx.id,
+                    date: tx.transactionDate,
+                    balance: running,
+                    label: tx.concept
+                )
+            )
+        }
+
+        return points
+    }
+
+    private var selectedPoint: TrajectoryPoint? {
+        guard let selectedDate = selectedDate else { return nil }
+        return trajectoryPoints.min(by: {
+            abs($0.date.timeIntervalSince(selectedDate)) < abs($1.date.timeIntervalSince(selectedDate))
+        })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header Fijo de Inspección
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.accountType == .loan ? "Curva de Amortización" : "Evolución de Saldo")
+                        .font(.kashBodyBold)
+
+                    if let sel = selectedPoint {
+                        HStack(spacing: 6) {
+                            Text(sel.date.spanishShortDate)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Color(hex: account.colorHex))
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            PrivacyAwareText(
+                                amount: Decimal(sel.balance),
+                                font: .kashCaptionBold,
+                                foregroundColor: Color(hex: account.colorHex)
+                            )
+                        }
+                    } else {
+                        Text(account.accountType == .loan ? "Reducción de pasivo conforme se cubren cuotas" : "Historial cronológico de saldo disponible")
+                            .font(.kashMicro)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                if selectedPoint != nil {
+                    Button {
+                        selectedDate = nil
+                    } label: {
+                        Text("Limpiar")
+                            .font(.kashMicro)
+                            .foregroundStyle(Color(hex: "#2563EB"))
+                    }
+                }
+            }
+            .frame(height: 38, alignment: .leading)
+
+            if trajectoryPoints.count <= 1 {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(hex: account.colorHex).opacity(0.08))
+                    .frame(height: 140)
+                    .overlay {
+                        VStack(spacing: 6) {
+                            Text(account.accountType == .loan ? "Sin abonos registrados" : "Saldo Actual: \(account.availableBalance.formatted(.currency(code: "MXN")))")
+                                .font(.kashCaptionBold)
+                            Text("Registra movimientos para trazar la curva de saldo en esta cuenta.")
+                                .font(.kashMicro)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+            } else {
+                Chart {
+                    ForEach(trajectoryPoints) { p in
+                        AreaMark(
+                            x: .value("Fecha", p.date),
+                            y: .value("Saldo", p.balance)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(hex: account.colorHex).opacity(0.35), Color(hex: account.colorHex).opacity(0.02)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .interpolationMethod(.monotone)
+
+                        LineMark(
+                            x: .value("Fecha", p.date),
+                            y: .value("Saldo", p.balance)
+                        )
+                        .foregroundStyle(Color(hex: account.colorHex))
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                        .interpolationMethod(.monotone)
+
+                        PointMark(
+                            x: .value("Fecha", p.date),
+                            y: .value("Saldo", p.balance)
+                        )
+                        .foregroundStyle(Color(hex: account.colorHex))
+                        .symbolSize(32)
+                    }
+
+                    if let sel = selectedPoint {
+                        RuleMark(x: .value("Selección", sel.date))
+                            .foregroundStyle(Color(hex: account.colorHex).opacity(0.8))
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            .annotation(position: .top, overflowResolution: .init(x: .fit(to: .plot), y: .disabled)) {
+                                VStack(spacing: 1) {
+                                    Text(sel.date.spanishShortDate)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.white)
+                                    Text(Decimal(sel.balance).formatted(.currency(code: "MXN")))
+                                        .font(.system(size: 11, weight: .heavy))
+                                        .foregroundStyle(.white)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(hex: "#1E293B"), in: RoundedRectangle(cornerRadius: 6))
+                                .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
+                            }
+                    }
+                }
+                .chartXSelection(value: $selectedDate)
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let dateVal = value.as(Date.self) {
+                                Text(dateVal.spanishShortDate)
+                                    .font(.system(size: 9))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 160)
+            }
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
     }
 }

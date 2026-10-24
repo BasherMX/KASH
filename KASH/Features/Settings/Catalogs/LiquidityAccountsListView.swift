@@ -146,8 +146,11 @@ struct LiquidityAccountEditSheet: View {
     @State private var totalInstallments: Int = 12
     @State private var paidInstallments: Int = 0
     @State private var installmentAmountString: String = ""
+    @State private var installmentFrequency: InstallmentFrequency = .monthly
 
     @State private var isShowingDeleteConfirmation = false
+
+    private let quickInstallmentPresets = [6, 12, 18, 24, 36, 48, 60]
 
     private let availableColors = [
         "#2563EB", "#10B981", "#F59E0B", "#8B5CF6", "#06B6D4", "#EC4899", "#1E293B", "#64748B"
@@ -176,8 +179,61 @@ struct LiquidityAccountEditSheet: View {
 
                 if selectedType == .loan {
                     Section("Plan de Cuotas del Préstamo") {
-                        Stepper("Plazo total: \(totalInstallments) cuotas", value: $totalInstallments, in: 1...240)
-                        Stepper("Cuotas cubiertas: \(paidInstallments) cuotas", value: $paidInstallments, in: 0...totalInstallments)
+                        Picker("Frecuencia de Cuota", selection: $installmentFrequency) {
+                            ForEach(InstallmentFrequency.allCases, id: \.self) { freq in
+                                Text(freq.title).tag(freq)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Plazo Total de Cuotas")
+                                .font(.kashCaption)
+                                .foregroundStyle(.secondary)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(quickInstallmentPresets, id: \.self) { preset in
+                                        Button {
+                                            totalInstallments = preset
+                                        } label: {
+                                            Text("\(preset) cuotas")
+                                                .font(.system(size: 11, weight: totalInstallments == preset ? .bold : .medium))
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 5)
+                                                .background(
+                                                    totalInstallments == preset ? Color(hex: "#2563EB") : Color.secondary.opacity(0.12),
+                                                    in: Capsule()
+                                                )
+                                                .foregroundStyle(totalInstallments == preset ? .white : .primary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+
+                            HStack {
+                                Text("O ingresa total de cuotas:")
+                                    .font(.kashCaption)
+                                Spacer()
+                                TextField("Cuotas", value: $totalInstallments, format: .number)
+                                    .keyboardType(.numberPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .frame(width: 80)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+
+                        HStack {
+                            Text("Cuotas ya cubiertas / pagadas:")
+                                .font(.kashCaption)
+                            Spacer()
+                            TextField("Pagadas", value: $paidInstallments, format: .number)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 80)
+                                .textFieldStyle(.roundedBorder)
+                        }
 
                         HStack {
                             Text("Monto por cuota ($)")
@@ -191,25 +247,46 @@ struct LiquidityAccountEditSheet: View {
                 }
 
                 Section("Color e Ícono") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(availableColors, id: \.self) { hex in
-                                Circle()
-                                    .fill(Color(hex: hex))
-                                    .frame(width: 34, height: 34)
-                                    .overlay {
-                                        if selectedColorHex == hex {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 14, weight: .bold))
-                                                .foregroundStyle(.white)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Paleta de Color")
+                            .font(.kashCaption)
+                            .foregroundStyle(.secondary)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(availableColors, id: \.self) { hex in
+                                    Circle()
+                                        .fill(Color(hex: hex))
+                                        .frame(width: 34, height: 34)
+                                        .overlay {
+                                            if selectedColorHex.uppercased() == hex.uppercased() {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 14, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                            }
                                         }
-                                    }
-                                    .onTapGesture {
-                                        selectedColorHex = hex
-                                    }
+                                        .onTapGesture {
+                                            selectedColorHex = hex
+                                        }
+                                }
                             }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
+
+                        HStack {
+                            Text("Color personalizado:")
+                                .font(.kashCaption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            ColorPicker("", selection: Binding(
+                                get: { Color(hex: selectedColorHex) },
+                                set: { newCol in
+                                    if let h = newCol.toHex() {
+                                        selectedColorHex = h
+                                    }
+                                }
+                            ))
+                        }
                     }
 
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -293,6 +370,7 @@ struct LiquidityAccountEditSheet: View {
                     totalInstallments = acc.totalInstallments > 0 ? acc.totalInstallments : 12
                     paidInstallments = acc.paidInstallments
                     installmentAmountString = "\(acc.installmentAmount)"
+                    installmentFrequency = acc.installmentFrequency
                 }
             }
         }
@@ -312,6 +390,7 @@ struct LiquidityAccountEditSheet: View {
             acc.totalInstallments = totalInstallments
             acc.paidInstallments = paidInstallments
             acc.installmentAmount = cleanInstallment
+            acc.installmentFrequency = installmentFrequency
             acc.updatedAt = Date()
         } else {
             let newAcc = LiquidityAccount(
@@ -324,7 +403,8 @@ struct LiquidityAccountEditSheet: View {
                 isActive: true,
                 totalInstallments: totalInstallments,
                 paidInstallments: paidInstallments,
-                installmentAmount: cleanInstallment
+                installmentAmount: cleanInstallment,
+                installmentFrequency: installmentFrequency
             )
             modelContext.insert(newAcc)
         }

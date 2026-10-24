@@ -67,7 +67,8 @@ final class BackupManager {
                 updatedAt: isoFormatter.string(from: a.updatedAt),
                 totalInstallments: a.totalInstallments,
                 paidInstallments: a.paidInstallments,
-                installmentAmount: NSDecimalNumber(decimal: a.installmentAmount).doubleValue
+                installmentAmount: NSDecimalNumber(decimal: a.installmentAmount).doubleValue,
+                installmentFrequencyRaw: a.installmentFrequencyRaw
             )
         }
 
@@ -277,6 +278,7 @@ final class BackupManager {
                 if let ti = accDTO.totalInstallments { account.totalInstallments = ti }
                 if let pi = accDTO.paidInstallments { account.paidInstallments = pi }
                 if let ia = accDTO.installmentAmount { account.installmentAmount = Decimal(ia) }
+                if let ifreq = accDTO.installmentFrequencyRaw { account.installmentFrequencyRaw = ifreq }
             } else {
                 account = LiquidityAccount(
                     name: accDTO.name,
@@ -288,7 +290,8 @@ final class BackupManager {
                     isActive: accDTO.isActive,
                     totalInstallments: accDTO.totalInstallments ?? 0,
                     paidInstallments: accDTO.paidInstallments ?? 0,
-                    installmentAmount: Decimal(accDTO.installmentAmount ?? 0)
+                    installmentAmount: Decimal(accDTO.installmentAmount ?? 0),
+                    installmentFrequency: InstallmentFrequency(rawValue: accDTO.installmentFrequencyRaw ?? "monthly") ?? .monthly
                 )
                 modelContext.insert(account)
             }

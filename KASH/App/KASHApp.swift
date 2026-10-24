@@ -119,9 +119,10 @@ struct KASHApp: App {
 
             self.sharedModelContainer = container
 
-            // Inicializar categorías estándar y UserSettings canónico de forma síncrona antes de renderizar vistas
+            // Inicializar categorías estándar, delegado de notificaciones y UserSettings canónico de forma síncrona
             let context = container.mainContext
             Self.initializeDatabaseDefaults(in: context)
+            _ = NotificationManager.shared
             KASHWidgetSyncService.sync(modelContext: context)
         } catch {
             fatalError("No se pudo inicializar ModelContainer de SwiftData: \(error.localizedDescription)")

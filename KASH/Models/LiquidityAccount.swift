@@ -1,6 +1,23 @@
 import Foundation
 import SwiftData
 
+// MARK: - Frecuencia de Cuota en Préstamos
+enum InstallmentFrequency: String, CaseIterable, Codable {
+    case weekly = "weekly"
+    case biweekly = "biweekly"
+    case monthly = "monthly"
+    case bimonthly = "bimonthly"
+
+    var title: String {
+        switch self {
+        case .weekly: return "Semanal"
+        case .biweekly: return "Quincenal"
+        case .monthly: return "Mensual"
+        case .bimonthly: return "Bimestral"
+        }
+    }
+}
+
 // MARK: - Tipo de Cuenta de Liquidez
 enum AccountType: String, CaseIterable, Codable {
     case debit = "debit"                   // Cuenta de débito
@@ -46,6 +63,7 @@ final class LiquidityAccount {
     var totalInstallments: Int = 0         // Plazo total en mensualidades / quincenas
     var paidInstallments: Int = 0          // Mensualidades / quincenas ya cubiertas
     var installmentAmount: Decimal = 0     // Monto de cada pago periódico
+    var installmentFrequencyRaw: String = "monthly" // weekly, biweekly, monthly, bimonthly
 
     @Relationship(deleteRule: .nullify, inverse: \Transaction.liquidityAccount)
     var transactions: [Transaction]? = []
@@ -53,6 +71,11 @@ final class LiquidityAccount {
     var accountType: AccountType {
         get { AccountType(rawValue: accountTypeRaw) ?? .debit }
         set { accountTypeRaw = newValue.rawValue }
+    }
+
+    var installmentFrequency: InstallmentFrequency {
+        get { InstallmentFrequency(rawValue: installmentFrequencyRaw) ?? .monthly }
+        set { installmentFrequencyRaw = newValue.rawValue }
     }
 
     init(
@@ -65,7 +88,8 @@ final class LiquidityAccount {
         isActive: Bool = true,
         totalInstallments: Int = 0,
         paidInstallments: Int = 0,
-        installmentAmount: Decimal = 0
+        installmentAmount: Decimal = 0,
+        installmentFrequency: InstallmentFrequency = .monthly
     ) {
         self.id = UUID()
         self.name = name
@@ -78,6 +102,7 @@ final class LiquidityAccount {
         self.totalInstallments = totalInstallments
         self.paidInstallments = paidInstallments
         self.installmentAmount = installmentAmount
+        self.installmentFrequencyRaw = installmentFrequency.rawValue
         self.updatedAt = Date()
     }
 }

@@ -9,7 +9,7 @@ import WidgetKit
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var appState: AppState
-    @Query private var creditCards: [CreditCard]
+    @Query(sort: \CreditCard.displayOrder) private var creditCards: [CreditCard]
     @Query private var liquidityAccounts: [LiquidityAccount]
     @Query private var upcomingPayments: [UpcomingPayment]
     @Query private var monthlyRecords: [MonthlyRecord]
@@ -495,22 +495,37 @@ struct UpcomingPaymentsCard: View {
 
 // MARK: - CreditCardsSnapshotCard
 struct CreditCardsSnapshotCard: View {
+    @Environment(\.modelContext) private var modelContext
     let cards: [CreditCard]
 
+    @State private var orderedCards: [CreditCard] = []
+    @State private var draggingCard: CreditCard? = nil
+
+    private func syncCards() {
+        orderedCards = cards.filter { $0.isActive }.sorted { $0.displayOrder < $1.displayOrder }
+    }
+
+    private func saveOrder() {
+        for (idx, card) in orderedCards.enumerated() {
+            card.displayOrder = idx
+        }
+        try? modelContext.save()
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Tus Tarjetas de Crédito")
                     .font(.kashBodyBold)
                 Spacer()
-                if !cards.isEmpty {
-                    Text("\(cards.filter { $0.isActive }.count) activas")
+                if !orderedCards.isEmpty {
+                    Text("\(orderedCards.count) activas")
                         .font(.kashMicro)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            if cards.isEmpty {
+            if orderedCards.isEmpty {
                 Text("No tienes tarjetas registradas.")
                     .font(.kashCaption)
                     .foregroundStyle(.secondary)
@@ -518,23 +533,74 @@ struct CreditCardsSnapshotCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(cards.filter { $0.isActive }) { card in
+                    HStack(spacing: 12) {
+                        ForEach(orderedCards) { card in
                             NavigationLink {
                                 CreditCardDetailView(card: card)
                             } label: {
                                 CreditCardMiniCard(card: card)
+                                    .opacity(draggingCard?.id == card.id ? 0.4 : 1.0)
+                                    .scaleEffect(draggingCard?.id == card.id ? 1.02 : 1.0)
                             }
                             .buttonStyle(.plain)
+                            .onDrag {
+                                self.draggingCard = card
+                                return NSItemProvider(object: card.id.uuidString as NSString)
+                            }
+                            .onDrop(
+                                of: [.text],
+                                delegate: CardDropDelegate(
+                                    item: card,
+                                    items: $orderedCards,
+                                    draggingItem: $draggingCard,
+                                    onCommit: saveOrder
+                                )
+                            )
                         }
                     }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 4)
                     .padding(.horizontal, 2)
                 }
             }
         }
-        .padding(16)
+        .padding(14)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .onAppear {
+            syncCards()
+        }
+        .onChange(of: cards) { _, _ in
+            syncCards()
+        }
+    }
+}
+
+// MARK: - CardDropDelegate
+private struct CardDropDelegate: DropDelegate {
+    let item: CreditCard
+    @Binding var items: [CreditCard]
+    @Binding var draggingItem: CreditCard?
+    let onCommit: () -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging = draggingItem, dragging.id != item.id else { return }
+        guard let fromIndex = items.firstIndex(where: { $0.id == dragging.id }),
+              let toIndex = items.firstIndex(where: { $0.id == item.id }) else { return }
+
+        if items[toIndex].id != dragging.id {
+            withAnimation(.snappy(duration: 0.2)) {
+                items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+            }
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingItem = nil
+        onCommit()
+        return true
     }
 }
 
@@ -677,7 +743,7 @@ struct LiquidityAccountMiniCard: View {
                     }
                 }
             }
-            .padding(14)
+            .padding(12)
 
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
@@ -689,8 +755,8 @@ struct LiquidityAccountMiniCard: View {
                     lineWidth: 1
                 )
         }
-        .frame(width: 238, height: 150)
-        .shadow(color: Color(hex: account.colorHex).opacity(0.3), radius: 8, y: 4)
+        .frame(width: 212, height: 134)
+        .shadow(color: Color(hex: account.colorHex).opacity(0.3), radius: 6, y: 3)
     }
 }
 
@@ -882,7 +948,7 @@ struct CreditCardMiniCard: View {
                     }
                 }
             }
-            .padding(14)
+            .padding(12)
 
             // Borde especular metálico de 1pt
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -895,8 +961,8 @@ struct CreditCardMiniCard: View {
                     lineWidth: 1
                 )
         }
-        // Proporción estándar ISO/IEC 7810 ID-1 (~1.586 : 1)
-        .frame(width: 238, height: 150)
-        .shadow(color: Color(hex: card.colorHex).opacity(0.32), radius: 8, y: 4)
+        // Proporción estándar ISO/IEC 7810 ID-1 estilizada y compacta
+        .frame(width: 212, height: 134)
+        .shadow(color: Color(hex: card.colorHex).opacity(0.32), radius: 6, y: 3)
     }
 }

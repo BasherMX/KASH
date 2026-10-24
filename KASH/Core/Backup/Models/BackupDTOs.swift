@@ -72,6 +72,7 @@ struct LiquidityAccountDTO: Codable {
     let totalInstallments: Int?
     let paidInstallments: Int?
     let installmentAmount: Double?
+    let installmentFrequencyRaw: String?
 }
 
 struct CategoryDTO: Codable {

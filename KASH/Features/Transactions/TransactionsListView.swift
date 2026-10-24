@@ -305,69 +305,73 @@ struct TransactionRow: View {
     let tx: Transaction
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             ZStack {
                 Circle()
                     .fill(iconBackgroundColor.opacity(0.15))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 32, height: 32)
 
                 Image(systemName: iconName)
-                    .font(.system(size: 18))
+                    .font(.system(size: 14))
                     .foregroundStyle(iconBackgroundColor)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(tx.concept)
-                    .font(.kashBodyBold)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
 
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     if let cat = tx.category {
                         Text(cat.name)
-                            .font(.kashMicro)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .font(.system(size: 9, weight: .medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
                             .background(Color(hex: cat.colorHex).opacity(0.15), in: Capsule())
                             .foregroundStyle(Color(hex: cat.colorHex))
                     }
 
-                    Text(tx.transactionDate.formatted(date: .abbreviated, time: .shortened))
-                        .font(.kashCaption)
+                    Text(tx.transactionDate.spanishShortDate)
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
 
                 if let destCard = tx.destinationCard {
                     Text("Destino: \(destCard.name)")
-                        .font(.kashMicro)
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 } else if let card = tx.creditCard {
                     Text("Tarjeta: \(card.name)")
-                        .font(.kashMicro)
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 } else if let acc = tx.liquidityAccount {
                     Text("Cuenta: \(acc.name)")
-                        .font(.kashMicro)
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
-                HStack(spacing: 2) {
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 1) {
                     Text(prefixSign)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(amountColor)
                     PrivacyAwareText(
                         amount: tx.amount,
-                        font: .kashCaptionBold,
+                        font: .system(size: 13, weight: .bold),
                         foregroundColor: amountColor
                     )
                 }
 
                 Text(tx.type.title)
-                    .font(.kashMicro)
+                    .font(.system(size: 9))
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
     }
 
     private var prefixSign: String {

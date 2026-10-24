@@ -5,13 +5,33 @@ import UserNotifications
 /// Administrador de Notificaciones Locales (Offline-first)
 /// Gestiona recordatorios mensuales de registro de cortes y avisos de vencimientos de tarjetas
 @MainActor
-final class NotificationManager: ObservableObject {
+final class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
 
     @Published var isAuthorized: Bool = false
 
-    private init() {
+    private override init() {
+        super.init()
+        UNUserNotificationCenter.current().delegate = self
         checkAuthorization()
+    }
+
+    /// Presentar notificaciones en primer plano cuando el usuario tiene la app abierta
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge, .list])
+    }
+
+    /// Manejar toque en la notificación
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        completionHandler()
     }
 
     /// Verifica el estado actual del permiso de notificaciones
