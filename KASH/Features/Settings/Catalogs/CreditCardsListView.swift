@@ -87,6 +87,7 @@ struct CreditCardsListView: View {
         }
     }
 }
+}
 
 // MARK: - CreditCardRow
 struct CreditCardRow: View {

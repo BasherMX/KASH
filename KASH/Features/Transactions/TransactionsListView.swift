@@ -180,6 +180,7 @@ struct TransactionsListView: View {
                                         Label("Editar", systemImage: "pencil")
                                     }
                                     .tint(Color(hex: "#2563EB"))
+                                }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
                                         transactionToDelete = tx
@@ -296,10 +297,6 @@ struct TransactionsListView: View {
         try? modelContext.save()
         KASHWidgetSyncService.sync(modelContext: modelContext)
         transactionToDelete = nil
-    }
-        }
-        try? modelContext.save()
-        KASHWidgetSyncService.sync(modelContext: modelContext)
     }
 }
 
